@@ -4,6 +4,8 @@ A local-first, evidence-based musicianship studio. The implemented core includes
 
 The Progress journal derives per-skill mastery, median latency, compatible then-versus-now accuracy, and directional confusion pairs directly from the stored attempts. It deliberately has no XP, streaks, lives, or global score.
 
+Functional Harmony practice adds transposable progression recognition in all 12 keys, with separate Roman-numeral and functional-response modes covering cadences, ii–V–I, secondary dominants, modal mixture, and tritone substitution.
+
 ## Run locally
 
 ```bash
