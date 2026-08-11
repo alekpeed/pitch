@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# Packaged specification exports (source specifications live in docs/spec/*.md)
+*.docx
