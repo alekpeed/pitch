@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "domains": [
+    {
+      "id": "pitch",
+      "name": "Pitch & Tonal Hearing",
+      "skills": [
+        "scale_degree_recognition",
+        "scale_degree_production",
+        "interval_melodic",
+        "interval_harmonic",
+        "interval_production",
+        "tonal_center",
+        "mode_recognition"
+      ]
+    },
+    {
+      "id": "chords",
+      "name": "Chord Hearing",
+      "skills": [
+        "triad_quality",
+        "seventh_quality",
+        "extensions",
+        "alterations",
+        "chord_decomposition",
+        "inversions",
+        "bass_note",
+        "slash_chords",
+        "arpeggiated_chords"
+      ]
+    },
+    {
+      "id": "voicing",
+      "name": "Voicing & Voice Leading",
+      "skills": [
+        "close_open",
+        "drop2",
+        "drop3",
+        "shells",
+        "rootless",
+        "quartal",
+        "spread_triads",
+        "upper_structures",
+        "exact_voicing_copy",
+        "guide_tones",
+        "voice_leading",
+        "inner_voice"
+      ]
+    },
+    {
+      "id": "function",
+      "name": "Functional Harmony",
+      "skills": [
+        "function_class",
+        "roman_numerals",
+        "progression_chunks",
+        "cadences",
+        "secondary_dominants",
+        "modal_interchange",
+        "tritone_sub",
+        "diminished_passing",
+        "backdoor",
+        "chromatic_mediants",
+        "pedal_points",
+        "modulation"
+      ]
+    },
+    {
+      "id": "transcription",
+      "name": "Transcription",
+      "skills": [
+        "melody_echo",
+        "melody_transcription",
+        "bass_transcription",
+        "chord_2bar",
+        "chord_multibar",
+        "boundary_detection",
+        "full_song",
+        "real_music_transfer"
+      ]
+    },
+    {
+      "id": "production",
+      "name": "Production & Performance",
+      "skills": [
+        "chord_tone_singing",
+        "guide_tone_singing",
+        "call_response",
+        "midi_chord_playback",
+        "functional_performance"
+      ]
+    }
+  ],
+  "mastery_labels": [
+    "introduced",
+    "developing",
+    "reliable",
+    "automatic",
+    "transferred"
+  ],
+  "difficulty_dimensions": [
+    "vocabulary",
+    "root_pool",
+    "register",
+    "inversion",
+    "voicing",
+    "timbre",
+    "duration",
+    "tempo",
+    "rhythm",
+    "context",
+    "mix_density",
+    "memory_delay",
+    "phrase_length",
+    "response_deadline",
+    "hints"
+  ]
+}
