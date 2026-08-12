@@ -38,7 +38,11 @@ export function selectSample(instrument: SampledInstrument, midi: number, veloci
 export class SampleCache {
   private buffers = new Map<string, Promise<AudioBuffer>>();
   private context: BaseAudioContext; private fetcher: typeof fetch;
-  constructor(context: BaseAudioContext, fetcher: typeof fetch = fetch) { this.context = context; this.fetcher = fetcher; }
+  // Bound so a later call through `this.fetcher(...)` — a property access — cannot
+  // detach fetch from its required Window/Worker receiver. An unbound reference
+  // throws "Illegal invocation" in real browsers the moment it is stored on and
+  // called from another object, which was silencing every sampled instrument.
+  constructor(context: BaseAudioContext, fetcher: typeof fetch = fetch.bind(globalThis)) { this.context = context; this.fetcher = fetcher; }
   load(url: string) {
     let pending = this.buffers.get(url);
     if (!pending) {

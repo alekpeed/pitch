@@ -24,4 +24,14 @@ describe('multisample mapping', () => {
     const perVoice = polyphonyGain(4) * instrumentTrim.piano * (.55 + .82 * .45);
     expect(perVoice * 4 * .55).toBeLessThan(1);
   });
+  it('calls the default fetcher with the global object as receiver', async () => {
+    const original = globalThis.fetch; const receivers: unknown[] = [];
+    // eslint-disable-next-line no-unused-vars -- TS `this` parameter, required to type the receiver below
+    globalThis.fetch = function fakeFetch(this: unknown) { receivers.push(this); return Promise.resolve({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) } as Response); } as typeof fetch;
+    try {
+      const context = { decodeAudioData: async () => ({} as AudioBuffer) } as unknown as BaseAudioContext;
+      await new SampleCache(context).load('/sample.ogg');
+      expect(receivers[0]).toBe(globalThis);
+    } finally { globalThis.fetch = original; }
+  });
 });
