@@ -2,6 +2,9 @@ name: CI
 on:
   push:
   pull_request:
+permissions:
+  contents: write
+
 jobs:
   web:
     runs-on: ubuntu-latest
@@ -44,3 +47,16 @@ jobs:
           name: perfect-ear-apk
           path: perfect-ear.apk
           if-no-files-found: error
+      - name: Move stable APK tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/work'
+        run: |
+          git tag -f apk-latest
+          git push origin apk-latest --force
+      - name: Publish stable APK download
+        if: github.event_name == 'push' && github.ref == 'refs/heads/work'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Perfect Ear Android APK
+          body: Install the latest Perfect Ear Android build. Android may ask you to allow installation from your browser or file manager.
+          files: perfect-ear.apk
