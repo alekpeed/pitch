@@ -12,6 +12,10 @@ Singing practice adds configurable intonation tolerance and confidence-aware mic
 
 The Transcription Lab supports local audio import, decoded waveforms, persistent loops, pitch-preserving speed controls, playhead chord-boundary marking, harmonic answer entry, reference-blind submission, and separately stored harmonic and timing grades for real-music transfer.
 
+## Android download
+
+Download the latest installable Android package: **[perfect-ear.apk](https://github.com/alekpeed/pitch/releases/download/apk-latest/perfect-ear.apk)**. Android may ask you to allow installs from your browser or file manager.
+
 ## Run locally
 
 ```bash
