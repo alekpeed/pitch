@@ -12,6 +12,12 @@ Singing practice adds configurable intonation tolerance and confidence-aware mic
 
 The Transcription Lab supports local audio import, decoded waveforms, persistent loops, pitch-preserving speed controls, playhead chord-boundary marking, harmonic answer entry, reference-blind submission, and separately stored harmonic and timing grades for real-music transfer.
 
+## Offline instruments
+
+Practice playback is fully offline. Acoustic piano uses 66 locally bundled Salamander Grand Piano recordings (three velocity layers, minor-third zones). Rhodes uses 35 locally bundled jRhodes3d Mark I recordings with three velocity selections where captured, tine-sensitive dynamics, release shaping, saturation, and tremolo. The organ is a modeled tonewheel engine with drawbars, percussion, key click, leakage, saturation, chorus, and Leslie-style rotation. Samples are fetched lazily and decoded once into an in-memory cache; only central piano samples are warmed initially. A compressor and voice-count-aware gain prevent dense chords from clipping.
+
+The piano samples are CC BY 3.0 (Alexander Holm / Salamander Grand Piano). The Rhodes samples are CC BY-NC 4.0 (Jeffrey Learman / jRhodes3d) and this build is distributed noncommercially. Full attribution and license texts are bundled in [`public/audio`](public/audio/ATTRIBUTION.md). The compressed instrument assets add approximately 4 MB to the installed web assets; the signed Android APK is approximately 8–10 MB.
+
 ## Android download
 
 Download the latest installable Android package: **[perfect-ear.apk](https://github.com/alekpeed/pitch/releases/download/apk-latest/perfect-ear.apk)**. Android may ask you to allow installs from your browser or file manager. Every release uses the same protected signing certificate and a monotonically increasing version code, so a new APK installs as an update over the existing app without uninstalling it.
