@@ -1,0 +1,71 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: write
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Build signed installable APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: perfect-ear-update.jks
+          ANDROID_KEYSTORE_PASSWORD: perfect-ear-update
+          ANDROID_KEY_ALIAS: perfect-ear
+          ANDROID_KEY_PASSWORD: perfect-ear-update
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: 1.1.${{ github.run_number }}
+        run: ./gradlew assembleRelease
+      - name: Verify APK signature
+        run: $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk
+      - name: Name APK for download
+        run: cp android/app/build/outputs/apk/release/app-release.apk perfect-ear.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perfect-ear-apk
+          path: perfect-ear.apk
+          if-no-files-found: error
+      - name: Move stable APK tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/work'
+        run: |
+          git tag -f apk-latest
+          git push origin apk-latest --force
+      - name: Publish stable APK download
+        if: github.event_name == 'push' && github.ref == 'refs/heads/work'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Perfect Ear Android APK
+          body: Install the latest Perfect Ear Android build. Android may ask you to allow installation from your browser or file manager.
+          files: perfect-ear.apk
