@@ -8,6 +8,8 @@ Functional Harmony practice adds transposable progression recognition in all 12 
 
 Voicing and Performance practice provides constrained close, open, spread, drop-2, shell, and rootless voicings; Web MIDI and accessible on-screen input; exact or octave-equivalent grading; configurable rolled-chord tolerance; and ii–V–I guide-tone voice-leading exercises.
 
+Singing practice adds configurable intonation tolerance and confidence-aware microphone pitch tracking so silence and detector uncertainty are never treated as user errors.
+
 The Transcription Lab supports local audio import, decoded waveforms, persistent loops, pitch-preserving speed controls, playhead chord-boundary marking, harmonic answer entry, reference-blind submission, and separately stored harmonic and timing grades for real-music transfer.
 
 ## Run locally
