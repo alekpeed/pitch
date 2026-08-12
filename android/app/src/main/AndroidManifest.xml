@@ -39,4 +39,12 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!--
+      Capacitor's BridgeWebChromeClient requests MODIFY_AUDIO_SETTINGS alongside
+      RECORD_AUDIO whenever the WebView asks for AUDIO_CAPTURE, and it treats the
+      request as granted only if every permission comes back granted. Android
+      auto-denies any permission the manifest does not declare, so omitting this
+      one made getUserMedia fail on device even after the user allowed the mic.
+    -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>
