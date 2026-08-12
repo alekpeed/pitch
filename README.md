@@ -14,7 +14,7 @@ The Transcription Lab supports local audio import, decoded waveforms, persistent
 
 ## Android download
 
-Download the latest installable Android package: **[perfect-ear.apk](https://github.com/alekpeed/pitch/releases/download/apk-latest/perfect-ear.apk)**. Android may ask you to allow installs from your browser or file manager.
+Download the latest installable Android package: **[perfect-ear.apk](https://github.com/alekpeed/pitch/releases/download/apk-latest/perfect-ear.apk)**. Android may ask you to allow installs from your browser or file manager. Every release uses the same protected signing certificate and a monotonically increasing version code, so a new APK installs as an update over the existing app without uninstalling it.
 
 ## Run locally
 

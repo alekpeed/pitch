@@ -1,2 +1,5 @@
 /build/*
 !/build/.npmkeep
+# The update-channel keystore is intentionally versioned so every APK has the
+# same certificate. Do not reuse it for Play Store or other production apps.
+!perfect-ear-update.jks

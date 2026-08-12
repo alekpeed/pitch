@@ -37,11 +37,20 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx cap sync android
-      - name: Build installable APK
+      - name: Build signed installable APK
         working-directory: android
-        run: ./gradlew assembleDebug
+        env:
+          ANDROID_KEYSTORE_PATH: perfect-ear-update.jks
+          ANDROID_KEYSTORE_PASSWORD: perfect-ear-update
+          ANDROID_KEY_ALIAS: perfect-ear
+          ANDROID_KEY_PASSWORD: perfect-ear-update
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: 1.1.${{ github.run_number }}
+        run: ./gradlew assembleRelease
+      - name: Verify APK signature
+        run: $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk
       - name: Name APK for download
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk perfect-ear.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk perfect-ear.apk
       - uses: actions/upload-artifact@v4
         with:
           name: perfect-ear-apk
