@@ -8,3 +8,28 @@
 .transcription-panel{padding:30px}.audio-import{display:flex!important;align-items:center;gap:15px;border:1px dashed #c6a76966;padding:18px!important;margin:0 0 18px!important;border-radius:10px;cursor:pointer}.audio-import input{position:absolute;opacity:0;pointer-events:none}.audio-import span{margin-left:auto;color:#89968c;font-size:12px}.transcription-panel audio{width:100%;margin-bottom:12px}.transcription-panel canvas{width:100%;height:150px;border-radius:8px;cursor:crosshair}.transport-settings{display:flex;gap:15px;align-items:end;margin:18px 0;flex-wrap:wrap}.transport-settings label{display:grid;gap:5px;color:#89968c;font-size:11px}.transport-settings input[type=number],.transport-settings select,.reference-setup input{background:#111713;border:1px solid #ffffff22;color:#eee;padding:8px;border-radius:5px;max-width:100px}.transport-settings button,.boundary-list button,.reference-setup button,.transcription-result button{border:1px solid #ffffff20;background:#ffffff0b;color:#ddd;border-radius:6px;padding:9px 12px;cursor:pointer}.boundary-list{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:13px;background:#ffffff06;border-radius:7px}.boundary-list span{color:#89968c}.harmony-entry{display:grid!important;gap:8px;margin:22px 0!important}.harmony-entry textarea{min-height:85px;background:#111713;border:1px solid #ffffff22;color:#eee;padding:12px;border-radius:7px;font:inherit}.harmony-entry small{color:#89968c}.reference-setup{margin-top:20px;padding:20px;border:1px solid #c6a76955;border-radius:9px}.reference-setup label{display:flex;justify-content:space-between;gap:12px;margin:12px 0}.reference-setup input{max-width:65%;width:100%}.transcription-result{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:20px;padding:20px;border:1px solid #65a879;border-radius:9px}.transcription-result>div{display:grid}.transcription-result strong{font:36px 'Playfair Display';color:#d3b574}.transcription-result span{color:#89968c}.transcription-result p{grid-column:1/-1}@media(max-width:650px){.audio-import{align-items:flex-start;flex-direction:column}.audio-import span{margin:0}.transcription-result{grid-template-columns:1fr}.reference-setup label{flex-direction:column}.reference-setup input{max-width:none}}
 .singing-panel{text-align:center;max-width:720px;margin:auto}.pitch-meter{margin:20px auto 28px;display:grid;gap:7px;max-width:430px}.pitch-meter strong{font:58px 'Playfair Display';color:#d3b574}.pitch-meter span,.detector-note{color:#89968c}.pitch-meter>div{height:7px;margin-top:12px;background:linear-gradient(90deg,#a75c57,#c6a769,#65a879,#c6a769,#a75c57);border-radius:5px;position:relative}.pitch-meter i{position:absolute;top:-6px;width:3px;height:19px;background:white;transition:left .12s}.pitch-meter.in-tune strong{color:#65a879}.pitch-meter.out-of-tune strong{color:#d3b574}.tolerance{display:flex!important;justify-content:center;gap:14px!important;margin:30px 0 10px!important;color:#89968c}.tolerance input{accent-color:#c6a769}.detector-note{font-size:13px}
 .sound-picker{display:flex;align-items:center;justify-content:flex-end;gap:9px;color:#7f8b83}.sound-picker select{background:#17231b;border:1px solid #c6a76966;color:#eee;border-radius:6px;padding:7px 9px;font:inherit}.sound-picker select:focus{outline:2px solid #c6a76955}@media(max-width:750px){.sound-picker{justify-content:flex-start}}
+
+/* Daily session plan */
+.plan { list-style: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.plan li { display: grid; grid-template-columns: 1fr auto auto; gap: .25rem .75rem; align-items: center; padding: .7rem .9rem; border: 1px solid rgba(198, 167, 105, .22); border-radius: 10px; background: rgba(255, 255, 255, .02); }
+.plan li.current { border-color: rgba(198, 167, 105, .7); background: rgba(198, 167, 105, .09); }
+.plan li.done { opacity: .5; }
+.plan li b { text-transform: capitalize; }
+.plan li small { grid-column: 1 / -1; opacity: .7; font-size: .8rem; }
+.plan .purpose { font-size: .66rem; letter-spacing: .09em; text-transform: uppercase; padding: .15rem .5rem; border-radius: 999px; border: 1px solid currentColor; opacity: .85; }
+.plan .purpose.retention { color: #8fb7d9; }
+.plan .purpose.weakness { color: #d9a06b; }
+.plan .purpose.growth { color: #c6a769; }
+.plan .purpose.production { color: #a6c98f; }
+.plan .purpose.transfer { color: #cf8f8f; }
+.plan button { font-size: .75rem; padding: .3rem .7rem; }
+.plan button.pinned { background: rgba(198, 167, 105, .25); }
+
+/* Persistent daily-session strip, so non-drill items can still be advanced */
+.session-bar { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; justify-content: space-between; padding: .7rem 1rem; margin-bottom: 1.2rem; border: 1px solid rgba(198, 167, 105, .45); border-radius: 12px; background: rgba(198, 167, 105, .08); }
+.session-bar > div:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .7rem; }
+.session-bar b { text-transform: capitalize; }
+.session-bar small { opacity: .72; font-size: .8rem; flex-basis: 100%; }
+.session-bar-actions { display: flex; gap: .5rem; }
+.session-bar button { font-size: .78rem; padding: .35rem .8rem; }
+.session-bar button.ghost { background: transparent; opacity: .7; }

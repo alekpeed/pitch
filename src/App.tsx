@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AudioEngine } from './audio';
 import { capabilityMilestones, confusionPairs, summarizeSession, summarizeSkills } from './analytics';
+import { adjustDrill, assembleSession, challengeSignal, rankCatalog, skillStates, type SessionSlot } from './adaptive';
 import { generateHarmony, harmonyAnswers, type HarmonyResponseMode } from './harmony';
+import { probeSeed, retentionStore, scheduleProbe } from './retention';
 import { attemptStore, sessionStore } from './storage';
 import { ANSWERS, generateStimulus, recommendKind, type DrillConfig, type ExerciseKind } from './training';
 import { NOTE_NAMES, pitch } from './theory';
@@ -11,7 +13,11 @@ import { VoicingLab } from './VoicingLab';
 import { SingingLab } from './SingingLab';
 import './styles.css';
 
-type Page = 'Practice' | 'Harmony' | 'Performance' | 'Transcription' | 'Singing' | 'Explore' | 'Progress' | 'Settings';
+type Page = 'Daily' | 'Practice' | 'Harmony' | 'Performance' | 'Transcription' | 'Singing' | 'Explore' | 'Progress' | 'Settings';
+const DRILL_KINDS: ExerciseKind[] = ['scale-degree', 'interval', 'triad', 'seventh', 'bass'];
+const CATALOG = DRILL_KINDS.map(kind => `${kind}-recognition`);
+const PRODUCTION = ['exact-voicing-copy', 'guide-tone-voice-leading'];
+const kindOf = (exercise: string) => DRILL_KINDS.find(kind => `${kind}-recognition` === exercise);
 const initialConfig: DrillConfig = { kind: 'triad', rootPool: 'all', inversions: true, melodic: false, register: 'random', timbre: 'piano' };
 
 export default function App() {
@@ -24,6 +30,9 @@ export default function App() {
   const [harmonyMode, setHarmonyMode] = useState<HarmonyResponseMode>('function');
   const [sessionId] = useState(() => crypto.randomUUID());
   const [selectedSkill, setSelectedSkill] = useState<string>();
+  const [plan, setPlan] = useState<SessionSlot[]>([]);
+  const [planIndex, setPlanIndex] = useState(0);
+  const [pinned, setPinned] = useState<string[]>([]);
   const started = useRef(Date.now());
   const audio = useMemo(() => new AudioEngine(), []);
   const stimulus = useMemo(() => generateStimulus(seed, config), [seed, config]);
@@ -36,6 +45,55 @@ export default function App() {
     setConfig(nextConfig); setSeed(value => value + 1); setAnswer(undefined); setReplays(0); started.current = Date.now();
   }
   function selectKind(kind: ExerciseKind) { next({ ...config, kind, melodic: kind === 'interval' ? config.melodic : false }); setPage('Practice'); }
+
+  const activeSlot = plan[planIndex];
+  const retentionDue = retentionStore.due().map(probe => probe.exercise);
+  const states = skillStates({ attempts, retentionDue, pinned });
+  const ranked = rankCatalog({ catalog: CATALOG, states, retentionDue, pinned });
+
+  /** Difficulty for one exercise, stepped toward the challenge zone. */
+  function tunedConfig(exercise: string, base = config): DrillConfig {
+    const kind = kindOf(exercise) ?? base.kind;
+    const state = states.find(item => item.exercise === exercise);
+    const seated = { ...base, kind, melodic: kind === 'interval' ? base.melodic : false };
+    if (!state) return seated;
+    const step = challengeSignal(state.accuracy, state.attempts);
+    const weakest = state.generalization.filter(item => !item.generalized).map(item => item.dimension);
+    return adjustDrill(seated, step, weakest);
+  }
+
+  function startDaily(total = 20) {
+    const due = retentionStore.due();
+    const growthTarget = ranked[0]?.exercise;
+    const slots = assembleSession({
+      total,
+      dueRetention: due.map(probe => ({ exercise: probe.exercise, probeId: probe.id })),
+      ranked: ranked.map(item => ({ exercise: item.exercise, config: tunedConfig(item.exercise), reason: item.reason })),
+      growth: growthTarget ? { exercise: growthTarget, config: adjustDrill(tunedConfig(growthTarget), 'raise'), reason: 'Targeted growth at raised difficulty' } : undefined,
+      production: PRODUCTION,
+      transfer: ['transcription'],
+    });
+    setPlan(slots); setPlanIndex(0);
+    if (slots.length) openSlot(slots[0], 0);
+  }
+
+  function openSlot(slot: SessionSlot, index: number) {
+    setPlanIndex(index); setAnswer(undefined); setReplays(0); started.current = Date.now();
+    const kind = kindOf(slot.exercise);
+    if (kind) {
+      setConfig(slot.config ? { ...slot.config, kind } : { ...config, kind });
+      // Retention probes must be altered examples, never exact repeats.
+      setSeed(slot.probeId ? probeSeed({ id: slot.probeId, exercise: slot.exercise, dueAt: new Date().toISOString(), intervalDays: 1 }) : value => value + 1);
+      setPage('Practice');
+    } else if (slot.exercise === 'transcription') setPage('Transcription');
+    else setPage('Performance');
+  }
+
+  function advancePlan() {
+    const nextIndex = planIndex + 1;
+    if (nextIndex >= plan.length) { setPlan([]); setPlanIndex(0); setPage('Daily'); return; }
+    openSlot(plan[nextIndex], nextIndex);
+  }
   function submit(response: string) {
     if (answer) return;
     setAnswer(response);
@@ -43,8 +101,16 @@ export default function App() {
       id: crypto.randomUUID(), sessionId, timestamp: new Date().toISOString(), exercise: `${config.kind}-recognition`,
       stimulus: { ...stimulus, timbre: config.timbre }, expected: stimulus.answer, response,
       correct: response === stimulus.answer, latencyMs: Date.now() - started.current,
-      difficulty: { rootPool: config.rootPool, inversions: config.inversions, register: config.register, timbre: config.timbre, presentation: config.melodic ? 'melodic' : 'harmonic' }, replayCount: replays
+      difficulty: { rootPool: config.rootPool, inversions: config.inversions, register: config.register, timbre: config.timbre, presentation: config.melodic ? 'melodic' : 'harmonic' }, replayCount: replays,
+      transferCategory: 'synthetic', retentionProbeId: activeSlot?.probeId
     });
+    const correct = response === stimulus.answer;
+    const exercise = `${config.kind}-recognition`;
+    // A due probe resolves here; success lengthens its interval, failure shortens it.
+    if (activeSlot?.probeId) retentionStore.complete(activeSlot.probeId, correct);
+    else if (!retentionStore.all().some(probe => probe.exercise === exercise && !probe.completedAt)) {
+      retentionStore.upsert(scheduleProbe(exercise, { id: `${exercise}:${Date.now()}`, sourceSeed: seed }));
+    }
     setHistoryVersion(value => value + 1);
   }
   function submitHarmony(response: string) {
@@ -62,8 +128,12 @@ export default function App() {
   const milestones = capabilityMilestones(attempts);
   const skillDetail = skills.find(skill => skill.exercise === selectedSkill);
 
-  return <div className="app"><aside><div className="brand"><span>PE</span><div>Perfect Ear<small>Musicianship studio</small></div></div><nav>{(['Practice', 'Harmony', 'Performance', 'Transcription', 'Singing', 'Explore', 'Progress', 'Settings'] as Page[]).map(item => <button className={page === item ? 'active' : ''} onClick={() => { setPage(item); setAnswer(undefined); }} key={item}>{item}</button>)}</nav><div className="profile"><b>Local profile</b><small>Private · on this device</small></div></aside><main><header><div><p className="eyebrow">{page === 'Practice' || page === 'Harmony' || page === 'Performance' || page === 'Transcription' ? 'TARGETED PRACTICE' : 'YOUR STUDIO'}</p><h1>{page}</h1></div><div className="session">{attempts.length} attempts recorded</div></header>
-  {page === 'Practice' && <><section className="hero"><div><span className="tag">CORE EAR TRAINING</span><h2>{config.kind.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')} recognition</h2><p>Identify what you hear. Every prompt varies its root, register, and tone.</p></div><div className="evidence"><small>Current conditions</small><b>{config.rootPool === 'all' ? 'All 12 roots' : 'Natural roots'} · {config.register} register</b><label className="sound-picker">Keyboard sound<select aria-label="Keyboard sound" value={config.timbre} onChange={event => next({ ...config, timbre: event.target.value as DrillConfig['timbre'] })}><option value="piano">Acoustic piano</option><option value="rhodes">Rhodes</option><option value="organ">Warm organ</option></select></label></div></section><div className="mode-tabs">{(['scale-degree', 'interval', 'triad', 'seventh', 'bass'] as ExerciseKind[]).map(kind => <button className={config.kind === kind ? 'selected' : ''} onClick={() => selectKind(kind)} key={kind}>{kind}</button>)}</div><section className="drill"><button className="listen" aria-label="Play prompt" onClick={play}><span>▶</span></button><h3>Listen, then choose</h3><p className="hint">Replay freely. Response time and replays are evidence, never penalties.</p><div className={`answers ${ANSWERS[config.kind].length > 4 ? 'many' : ''}`}>{ANSWERS[config.kind].map(option => <button key={option} onClick={() => submit(option)} className={answer ? (option === stimulus.answer ? 'correct' : option === answer ? 'wrong' : '') : ''}>{option}</button>)}</div>{answer && <div className="feedback"><div><b>{answer === stimulus.answer ? 'Correct — well heard.' : `This was ${stimulus.answer}.`}</b><span>{NOTE_NAMES[stimulus.root % 12]} · {stimulus.quality ?? (stimulus.inversion ? `inversion ${stimulus.inversion}` : 'root position')}</span></div><button onClick={() => next()}>Next prompt →</button></div>}</section></>}
+  return <div className="app"><aside><div className="brand"><span>PE</span><div>Perfect Ear<small>Musicianship studio</small></div></div><nav>{(['Daily', 'Practice', 'Harmony', 'Performance', 'Transcription', 'Singing', 'Explore', 'Progress', 'Settings'] as Page[]).map(item => <button className={page === item ? 'active' : ''} onClick={() => { setPage(item); setAnswer(undefined); }} key={item}>{item}</button>)}</nav><div className="profile"><b>Local profile</b><small>Private · on this device</small></div></aside><main><header><div><p className="eyebrow">{plan.length ? `DAILY SESSION · ${planIndex + 1} OF ${plan.length}` : page === 'Practice' || page === 'Harmony' || page === 'Performance' || page === 'Transcription' ? 'TARGETED PRACTICE' : 'YOUR STUDIO'}</p><h1>{page}</h1></div><div className="session">{attempts.length} attempts recorded</div></header>
+  {plan.length > 0 && activeSlot && <div className="session-bar"><div><b>{activeSlot.exercise.replaceAll('-', ' ')}</b><span className={`purpose ${activeSlot.purpose}`}>{activeSlot.purpose}</span><small>{activeSlot.reason}</small></div><div className="session-bar-actions"><button onClick={advancePlan}>{planIndex + 1 >= plan.length ? 'Finish session' : 'Skip item'}</button><button className="ghost" onClick={() => { setPlan([]); setPlanIndex(0); setPage('Daily'); }}>End session</button></div></div>}
+  {page === 'Daily' && <><section className="hero"><div><span className="tag">TODAY</span><h2>What should I work on now?</h2><p>A session built from retention that is due, current weaknesses, one growth target at raised difficulty, production work, and real-music transfer.</p></div><div className="evidence"><small>Engine state</small><b>{retentionDue.length} retention probe{retentionDue.length === 1 ? '' : 's'} due</b><span>{states.length} skill{states.length === 1 ? '' : 's'} with evidence</span></div></section>
+    {plan.length > 0 && <section className="panel"><h2>Session in progress</h2><ol className="plan">{plan.map((slot, index) => <li key={index} className={index === planIndex ? 'current' : index < planIndex ? 'done' : ''}><b>{slot.exercise.replaceAll('-', ' ')}</b><span className={`purpose ${slot.purpose}`}>{slot.purpose}</span><small>{slot.reason}</small></li>)}</ol><button className="submit-performance" onClick={() => openSlot(plan[planIndex], planIndex)}>Resume item {planIndex + 1} →</button><button onClick={() => { setPlan([]); setPlanIndex(0); }}>End session</button></section>}
+    {plan.length === 0 && <section className="panel"><h2>Next up</h2><p>Ranked by evidence: weakness, recurring confusions, retention debt, and conditions you have not generalized to yet. Nothing here is locked — you can always practice anything directly.</p><ol className="plan">{ranked.slice(0, 5).map(item => <li key={item.exercise}><b>{item.exercise.replaceAll('-', ' ')}</b><span className="purpose weakness">{item.state ? item.state.mastery : 'new'}</span><small>{item.reason}</small><button onClick={() => setPinned(current => current.includes(item.exercise) ? current.filter(value => value !== item.exercise) : [...current, item.exercise])} className={pinned.includes(item.exercise) ? 'pinned' : ''}>{pinned.includes(item.exercise) ? 'Pinned' : 'Pin'}</button></li>)}</ol><button className="submit-performance" onClick={() => startDaily()}>Start 20-item session</button><button onClick={() => startDaily(10)}>Short session (10)</button></section>}</>}
+  {page === 'Practice' && <><section className="hero"><div><span className="tag">CORE EAR TRAINING</span><h2>{config.kind.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')} recognition</h2><p>Identify what you hear. Every prompt varies its root, register, and tone.</p></div><div className="evidence"><small>Current conditions</small><b>{config.rootPool === 'all' ? 'All 12 roots' : 'Natural roots'} · {config.register} register</b><label className="sound-picker">Keyboard sound<select aria-label="Keyboard sound" value={config.timbre} onChange={event => next({ ...config, timbre: event.target.value as DrillConfig['timbre'] })}><option value="piano">Acoustic piano</option><option value="rhodes">Rhodes</option><option value="organ">Warm organ</option></select></label></div></section><div className="mode-tabs">{(['scale-degree', 'interval', 'triad', 'seventh', 'bass'] as ExerciseKind[]).map(kind => <button className={config.kind === kind ? 'selected' : ''} onClick={() => selectKind(kind)} key={kind}>{kind}</button>)}</div><section className="drill"><button className="listen" aria-label="Play prompt" onClick={play}><span>▶</span></button><h3>Listen, then choose</h3><p className="hint">Replay freely. Response time and replays are evidence, never penalties.</p><div className={`answers ${ANSWERS[config.kind].length > 4 ? 'many' : ''}`}>{ANSWERS[config.kind].map(option => <button key={option} onClick={() => submit(option)} className={answer ? (option === stimulus.answer ? 'correct' : option === answer ? 'wrong' : '') : ''}>{option}</button>)}</div>{answer && <div className="feedback"><div><b>{answer === stimulus.answer ? 'Correct — well heard.' : `This was ${stimulus.answer}.`}</b><span>{NOTE_NAMES[stimulus.root % 12]} · {stimulus.quality ?? (stimulus.inversion ? `inversion ${stimulus.inversion}` : 'root position')}</span></div><button onClick={() => plan.length ? advancePlan() : next()}>{plan.length ? (planIndex + 1 >= plan.length ? 'Finish session →' : 'Next item →') : 'Next prompt →'}</button></div>}</section></>}
   {page === 'Harmony' && <><section className="hero"><div><span className="tag">FUNCTIONAL HARMONY</span><h2>Progressions in key</h2><p>Hear common cadences, borrowed harmony, applied dominants, and substitutions in every key.</p></div><div className="evidence"><small>Established key</small><b>{NOTE_NAMES[harmony.keyPitchClass]} major</b><span>All 12 keys · Close voicing</span></div></section><div className="mode-tabs"><button className={harmonyMode === 'function' ? 'selected' : ''} onClick={() => { setHarmonyMode('function'); next(); }}>Function</button><button className={harmonyMode === 'roman' ? 'selected' : ''} onClick={() => { setHarmonyMode('roman'); next(); }}>Roman numerals</button></div><section className="drill"><button className="listen" aria-label="Play progression" onClick={() => { void audio.playProgression(harmony.chords.map(notes => notes.map(pitch))); setReplays(value => value + 1); }}><span>▶</span></button><h3>{harmonyMode === 'roman' ? 'Identify the exact progression' : 'Identify the harmonic function'}</h3><p className="hint">The displayed tonic establishes key context before you analyze the progression.</p><div className="answers harmony-answers">{harmonyAnswers(harmonyMode).map(option => { const expected = harmonyMode === 'roman' ? harmony.roman : harmony.function; return <button key={option} onClick={() => submitHarmony(option)} className={answer ? (option === expected ? 'correct' : option === answer ? 'wrong' : '') : ''}>{option}</button>; })}</div>{answer && <div className="feedback"><div><b>{answer === (harmonyMode === 'roman' ? harmony.roman : harmony.function) ? 'Correct — function resolved.' : `This was ${harmonyMode === 'roman' ? harmony.roman : harmony.function}.`}</b><span>{harmony.name} in {NOTE_NAMES[harmony.keyPitchClass]} major</span></div><button onClick={() => next()}>Next progression →</button></div>}</section></>}
   {page === 'Performance' && <VoicingLab sessionId={sessionId} onEvidence={() => setHistoryVersion(value => value + 1)}/>}
   {page === 'Transcription' && <TranscriptionLab sessionId={sessionId}/>}
