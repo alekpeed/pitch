@@ -1,6 +1,6 @@
 # Perfect Ear
 
-A local-first, evidence-based musicianship studio. The implemented core includes a responsive application shell, deterministic music-theory generation, multi-partial acoustic-piano, Rhodes, and organ playback, configurable scale-degree, interval, triad, seventh-chord, and bass-note drills, register and timbre controls, direct curriculum access, adaptive weak-area recommendations, and persistent raw attempt history.
+A local-first, evidence-based musicianship studio. The implemented core includes a responsive application shell, deterministic music-theory generation, multisampled acoustic-piano and Rhodes playback plus modeled tonewheel organ, configurable scale-degree, interval, triad, seventh-chord, and bass-note drills, register and timbre controls, direct curriculum access, adaptive weak-area recommendations, and persistent raw attempt history.
 
 The Progress journal derives automatic session summaries, per-skill mastery and detail, median latency, condition-compatible then-versus-now accuracy, directional confusion pairs, and evidence-backed capability milestones directly from the stored attempts. It deliberately has no XP, streaks, lives, or global score.
 
@@ -16,7 +16,7 @@ The Transcription Lab supports local audio import, decoded waveforms, persistent
 
 Practice playback is fully offline. Acoustic piano uses 66 locally bundled Salamander Grand Piano recordings (three velocity layers, minor-third zones). Rhodes uses 35 locally bundled jRhodes3d Mark I recordings with three velocity selections where captured, tine-sensitive dynamics, release shaping, saturation, and tremolo. The organ is a modeled tonewheel engine with drawbars, percussion, key click, leakage, saturation, chorus, and Leslie-style rotation. Samples are fetched lazily and decoded once into an in-memory cache; only central piano samples are warmed initially. A compressor and voice-count-aware gain prevent dense chords from clipping.
 
-The piano samples are CC BY 3.0 (Alexander Holm / Salamander Grand Piano). The Rhodes samples are CC BY-NC 4.0 (Jeffrey Learman / jRhodes3d) and this build is distributed noncommercially. Full attribution and license texts are bundled in [`public/audio`](public/audio/ATTRIBUTION.md). The compressed instrument assets add approximately 4 MB to the installed web assets; the signed Android APK is approximately 8–10 MB.
+The piano samples are CC BY 3.0 (Alexander Holm / Salamander Grand Piano). The Rhodes samples are CC BY-NC 4.0 (Jeffrey Learman / jRhodes3d) and this build is distributed noncommercially. Full attribution and license texts are bundled in [`public/audio`](public/audio/ATTRIBUTION.md). The compressed instrument assets add approximately 4 MB to the installed web assets; the signed Android APK is approximately 7 MB.
 
 ## Android download
 
