@@ -1,6 +1,6 @@
 # Perfect Ear
 
-A local-first, evidence-based musicianship studio. The implemented core includes a responsive application shell, deterministic music-theory generation, Web Audio playback, configurable scale-degree, interval, triad, seventh-chord, and bass-note drills, register and timbre controls, direct curriculum access, adaptive weak-area recommendations, and persistent raw attempt history.
+A local-first, evidence-based musicianship studio. The implemented core includes a responsive application shell, deterministic music-theory generation, multi-partial acoustic-piano, Rhodes, and organ playback, configurable scale-degree, interval, triad, seventh-chord, and bass-note drills, register and timbre controls, direct curriculum access, adaptive weak-area recommendations, and persistent raw attempt history.
 
 The Progress journal derives automatic session summaries, per-skill mastery and detail, median latency, condition-compatible then-versus-now accuracy, directional confusion pairs, and evidence-backed capability milestones directly from the stored attempts. It deliberately has no XP, streaks, lives, or global score.
 

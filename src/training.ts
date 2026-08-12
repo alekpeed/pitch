@@ -2,7 +2,7 @@ import { chord, melodicInterval, seededRandom, seventhChord, type ChordQuality, 
 
 export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass';
 export type Register = 'low' | 'middle' | 'high' | 'random';
-export type Timbre = 'sine' | 'triangle' | 'sawtooth';
+export type Timbre = 'piano' | 'rhodes' | 'organ';
 export interface DrillConfig { kind: ExerciseKind; rootPool: 'all' | 'white'; inversions: boolean; melodic: boolean; register: Register; timbre: Timbre }
 export interface Stimulus { kind: ExerciseKind; root: number; answer: string; notes: number[]; inversion: number; contextNotes?: number[]; direction?: 'ascending' | 'descending'; quality?: string }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateStimulus, recommendKind, type DrillConfig } from './training';
-const config = (overrides: Partial<DrillConfig> = {}): DrillConfig => ({ kind: 'seventh', rootPool: 'all', inversions: true, melodic: false, register: 'middle', timbre: 'triangle', ...overrides });
+const config = (overrides: Partial<DrillConfig> = {}): DrillConfig => ({ kind: 'seventh', rootPool: 'all', inversions: true, melodic: false, register: 'middle', timbre: 'piano', ...overrides });
 
 describe('training engine', () => {
   it('generates identical stimuli from identical seeds', () => expect(generateStimulus(12, config())).toEqual(generateStimulus(12, config())));
