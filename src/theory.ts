@@ -36,6 +36,31 @@ export function melodicInterval(rootMidi: number, semitones: number, direction: 
   return [pitch(rootMidi), pitch(rootMidi + (direction === 'ascending' ? semitones : -semitones))];
 }
 
+// Minimum spacing, in semitones, allowed between adjacent notes given the lower
+// note of the pair. Stacking intervals tighter than this low in the register is
+// what turns a chord to mud. Tuned for piano rather than sustained orchestral
+// voices, so it is slightly more permissive than the classical table.
+const lowIntervalLimits: readonly (readonly [number, number])[] = [[40, 12], [45, 7], [48, 5], [52, 3]];
+
+export function minimumSpacing(lowerMidi: number) {
+  for (const [ceiling, semitones] of lowIntervalLimits) if (lowerMidi < ceiling) return semitones;
+  return 0;
+}
+
+export function respectsLowIntervalLimit(midiNotes: number[]) {
+  const sorted = [...midiNotes].sort((a, b) => a - b);
+  return sorted.every((note, index) => index === 0 || note - sorted[index - 1] >= minimumSpacing(sorted[index - 1]));
+}
+
+// Transposes the whole set up by octaves until it clears the limit. Moving every
+// note together preserves the intervals, the inversion, and which chord member is
+// in the bass, so only the absolute register changes and grading stays valid.
+export function liftAboveMud(midiNotes: number[], ceiling = 84): number[] {
+  let lifted = [...midiNotes];
+  while (!respectsLowIntervalLimit(lifted) && Math.max(...lifted) + 12 <= ceiling) lifted = lifted.map(note => note + 12);
+  return lifted;
+}
+
 export function seededRandom(seed: number) {
   let value = seed >>> 0;
   return () => { value = (value * 1664525 + 1013904223) >>> 0; return value / 4294967296; };

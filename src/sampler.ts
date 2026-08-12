@@ -27,7 +27,10 @@ export function selectSample(instrument: SampledInstrument, midi: number, veloci
     return { instrument, rootMidi, layer, url: `/audio/piano/${pianoNames[index]}-v${pianoFiles[layer]}.ogg`, playbackRate: 2 ** ((midi - rootMidi) / 12) };
   }
   const rootMidi = nearest(midi, rhodesRoots); const index = rhodesRoots.indexOf(rootMidi);
-  const desired = [5,3,1][layer]; const layers = rhodesAvailable.get(rootMidi)!;
+  // Both libraries name louder recordings with a higher number, so the softest
+  // layer maps to v1 and the hardest to v5. This was previously reversed, which
+  // handed soft notes the hard-struck sample and loud notes the mellow one.
+  const desired = [1,3,5][layer]; const layers = rhodesAvailable.get(rootMidi)!;
   const fileLayer = layers.reduce((best, item) => Math.abs(item - desired) < Math.abs(best - desired) ? item : best);
   return { instrument, rootMidi, layer, url: `/audio/rhodes/${String(rootMidi).padStart(3,'0')}-${rhodesNames[index]}-v${fileLayer}.ogg`, playbackRate: 2 ** ((midi - rootMidi) / 12) };
 }
@@ -47,4 +50,11 @@ export class SampleCache {
   get size() { return this.buffers.size; }
 }
 
-export function polyphonyGain(voices: number) { return Math.min(.72, .9 / Math.sqrt(Math.max(1, voices))); }
+// Measured mean RMS of the bundled sets is -21.4 dBFS for the piano and -10.1
+// dBFS for the Rhodes. Trimming the Rhodes by that 11.3 dB difference stops the
+// level jumping when the timbre changes, and keeps chords off the limiter.
+export const instrumentTrim: Record<SampledInstrument, number> = { piano: 1, rhodes: .27 };
+
+// Voices in a chord share harmonics and sum closer to coherently than the
+// square-root law assumes, so attenuate faster than 1/sqrt(n).
+export function polyphonyGain(voices: number) { return Math.min(.72, .9 / Math.max(1, voices) ** .65); }

@@ -1,5 +1,5 @@
 import type { Pitch } from './theory';
-import { polyphonyGain, SampleCache, selectSample } from './sampler';
+import { instrumentTrim, polyphonyGain, SampleCache, selectSample, type SampledInstrument } from './sampler';
 import type { Timbre } from './training';
 
 interface Mix { dry: GainNode; room: GainNode }
@@ -11,24 +11,34 @@ export class AudioEngine {
     this.context ??= new AudioContext(); await this.context.resume();
     if (!this.cache) this.cache = new SampleCache(this.context);
     if (!this.mix) {
-      const compressor = this.context.createDynamicsCompressor(); compressor.threshold.value = -14; compressor.knee.value = 20; compressor.ratio.value = 4; compressor.attack.value = .004; compressor.release.value = .24;
-      const master = this.context.createGain(); master.gain.value = .68; master.connect(compressor).connect(this.context.destination);
+      // A safety limiter rather than a tone shaper: the old -14 dB threshold at 4:1
+      // put roughly 10 dB of gain reduction on every chord with no makeup gain,
+      // which is what made playback both quiet and pumped.
+      const limiter = this.context.createDynamicsCompressor(); limiter.threshold.value = -6; limiter.knee.value = 6; limiter.ratio.value = 12; limiter.attack.value = .003; limiter.release.value = .12;
+      const rumble = this.context.createBiquadFilter(); rumble.type = 'highpass'; rumble.frequency.value = 32; rumble.Q.value = .707;
+      // Makeup is folded into the master trim so the limiter stays the last stage
+      // and nothing downstream can push the output back past full scale.
+      const master = this.context.createGain(); master.gain.value = .84;
+      master.connect(rumble).connect(limiter).connect(this.context.destination);
       const dry = this.context.createGain(); dry.connect(master);
-      const room = this.context.createGain(); room.gain.value = .105; const delay = this.context.createDelay(.15); delay.delayTime.value = .047;
-      const feedback = this.context.createGain(); feedback.gain.value = .19; room.connect(delay); delay.connect(feedback).connect(delay); delay.connect(master); this.mix = { dry, room };
+      // The delay tail is band-limited so it cannot smear the low end.
+      const room = this.context.createGain(); room.gain.value = .105; const roomBand = this.context.createBiquadFilter(); roomBand.type = 'highpass'; roomBand.frequency.value = 400;
+      const delay = this.context.createDelay(.15); delay.delayTime.value = .047;
+      const feedback = this.context.createGain(); feedback.gain.value = .19; room.connect(roomBand).connect(delay); delay.connect(feedback).connect(delay); delay.connect(master); this.mix = { dry, room };
     }
     if (!this.warmed) { this.warmed = true; void Promise.all([4,9,14].map(layer => this.cache!.load(`/audio/piano/C4-v${layer}.ogg`))).catch(() => undefined); }
     return this.context;
   }
 
   private async sampledVoice(note: Pitch, timbre: 'piano' | 'rhodes', start: number, duration: number, velocity: number, level: number) {
-    const choice = selectSample(timbre, note.midiNumber, velocity); let buffer: AudioBuffer;
+    const choice = selectSample(timbre, note.midiNumber, velocity); let buffer: AudioBuffer; let sounding: SampledInstrument = timbre;
     try { buffer = await this.cache!.load(choice.url); }
-    catch { const fallback = selectSample('piano', note.midiNumber, velocity); buffer = await this.cache!.load(fallback.url); choice.playbackRate = fallback.playbackRate; }
+    catch { const fallback = selectSample('piano', note.midiNumber, velocity); buffer = await this.cache!.load(fallback.url); choice.playbackRate = fallback.playbackRate; sounding = 'piano'; }
     const context = this.context!; const source = context.createBufferSource(); source.buffer = buffer; source.playbackRate.value = choice.playbackRate;
     const envelope = context.createGain(); const attack = timbre === 'piano' ? .004 : .009; const release = timbre === 'piano' ? .58 : .34; const when = Math.max(start, context.currentTime + .008);
-    envelope.gain.setValueAtTime(.0001, when); envelope.gain.exponentialRampToValueAtTime(level * (.55 + velocity * .45), when + attack);
-    envelope.gain.setValueAtTime(level * (.55 + velocity * .45), when + Math.max(attack, duration - .05)); envelope.gain.exponentialRampToValueAtTime(.0001, when + duration + release);
+    const peak = level * instrumentTrim[sounding] * (.55 + velocity * .45);
+    envelope.gain.setValueAtTime(.0001, when); envelope.gain.exponentialRampToValueAtTime(peak, when + attack);
+    envelope.gain.setValueAtTime(peak, when + Math.max(attack, duration - .05)); envelope.gain.exponentialRampToValueAtTime(.0001, when + duration + release);
     if (timbre === 'rhodes') {
       const shaper = context.createWaveShaper(); const curve = new Float32Array(1024); for (let i=0;i<curve.length;i++) { const x=i/(curve.length-1)*2-1; curve[i]=Math.tanh(x*(1.2+velocity*.9)); } shaper.curve=curve;
       const tremolo = context.createGain(); tremolo.gain.value=.94; const lfo=context.createOscillator(); const depth=context.createGain(); lfo.frequency.value=4.6; depth.gain.value=.045; lfo.connect(depth).connect(tremolo.gain); source.connect(shaper).connect(tremolo).connect(envelope); lfo.start(when); lfo.stop(when+duration+release);
@@ -38,7 +48,11 @@ export class AudioEngine {
 
   private organVoice(note: Pitch, start: number, duration: number, level: number) {
     const context=this.context!; const bus=context.createGain(); const when=Math.max(start,context.currentTime+.008); bus.gain.setValueAtTime(.0001,when); bus.gain.exponentialRampToValueAtTime(level,when+.018); bus.gain.setValueAtTime(level,when+duration); bus.gain.exponentialRampToValueAtTime(.0001,when+duration+.12);
-    const drawbars=[[.5,.45],[1,1],[1.5,.48],[2,.62],[3,.32],[4,.2],[5,.1],[6,.08]]; drawbars.forEach(([ratio,gain])=>{ const oscillator=context.createOscillator(); const partial=context.createGain(); oscillator.type='sine'; oscillator.frequency.value=440*2**((note.midiNumber-69)/12)*ratio; partial.gain.value=gain; oscillator.connect(partial).connect(bus); oscillator.start(when); oscillator.stop(when+duration+.15); });
+    // Drawbar gains are normalised to sum to one. Unnormalised they summed to 3.3
+    // per voice and, because every partial starts at phase zero, drove the tanh
+    // stage below into permanent saturation.
+    const drawbars=[[.5,.45],[1,1],[1.5,.48],[2,.62],[3,.32],[4,.2],[5,.1],[6,.08]]; const drawbarSum=drawbars.reduce((total,[,gain])=>total+gain,0);
+    drawbars.forEach(([ratio,gain])=>{ const oscillator=context.createOscillator(); const partial=context.createGain(); oscillator.type='sine'; oscillator.frequency.value=440*2**((note.midiNumber-69)/12)*ratio; partial.gain.value=gain/drawbarSum; oscillator.connect(partial).connect(bus); oscillator.start(when); oscillator.stop(when+duration+.15); });
     const click=context.createBufferSource(); const noise=context.createBuffer(1,Math.floor(context.sampleRate*.025),context.sampleRate); const data=noise.getChannelData(0); for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*Math.exp(-i/180); click.buffer=noise; const clickGain=context.createGain(); clickGain.gain.value=.055; click.connect(clickGain).connect(bus); click.start(when);
     const percussion=context.createOscillator(); const percussionGain=context.createGain(); percussion.type='sine'; percussion.frequency.value=440*2**((note.midiNumber-69)/12)*3; percussionGain.gain.setValueAtTime(.16,when); percussionGain.gain.exponentialRampToValueAtTime(.0001,when+.42); percussion.connect(percussionGain).connect(bus); percussion.start(when); percussion.stop(when+.44);
     const leakage=context.createBufferSource(); const leakageNoise=context.createBuffer(1,Math.floor(context.sampleRate*(duration+.15)),context.sampleRate); const leakageData=leakageNoise.getChannelData(0); for(let i=0;i<leakageData.length;i++) leakageData[i]=(Math.random()*2-1)*.006; leakage.buffer=leakageNoise; leakage.connect(bus); leakage.start(when);

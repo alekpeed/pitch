@@ -1,4 +1,4 @@
-import { chord, melodicInterval, seededRandom, seventhChord, type ChordQuality, type SeventhQuality } from './theory';
+import { chord, liftAboveMud, melodicInterval, seededRandom, seventhChord, type ChordQuality, type SeventhQuality } from './theory';
 
 export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass';
 export type Register = 'low' | 'middle' | 'high' | 'random';
@@ -16,8 +16,18 @@ export const ANSWERS: Record<ExerciseKind, readonly string[]> = {
 const intervalSizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const majorScale = [0, 2, 4, 5, 7, 9, 11];
 const whitePitchClasses = [0, 2, 4, 5, 7, 9, 11];
-const registerBases: Record<Exclude<Register, 'random'>, number> = { low: 36, middle: 48, high: 60 };
+// C3 / G3 / D4. The old low base of C2 put whole triads an octave below the
+// point where close spacing stays intelligible, which is the main reason drills
+// sounded muddy.
+const registerBases: Record<Exclude<Register, 'random'>, number> = { low: 48, middle: 55, high: 62 };
 const triadQualities: ChordQuality[] = ['major', 'minor', 'diminished', 'augmented'];
+
+// Lifts a stimulus clear of the low-interval limit, keeping the reported root in
+// step with the notes that actually sound.
+function sounded(root: number, notes: number[]) {
+  const lifted = liftAboveMud(notes);
+  return { root: root + (lifted[0] - notes[0]), notes: lifted };
+}
 
 export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
   const random = seededRandom(seed);
@@ -28,20 +38,21 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
   const answerIndex = Math.floor(random() * answers.length);
   const answer = answers[answerIndex];
   if (config.kind === 'scale-degree') {
-    return { kind: config.kind, root, answer, notes: [root + majorScale[answerIndex]], contextNotes: chord(root, 'major').map(note => note.midiNumber), inversion: 0 };
+    return { kind: config.kind, root, answer, notes: [root + majorScale[answerIndex]], contextNotes: liftAboveMud(chord(root, 'major').map(note => note.midiNumber)), inversion: 0 };
   }
   if (config.kind === 'interval') {
     const direction = random() > .5 ? 'ascending' : 'descending'; const size = intervalSizes[answerIndex];
-    const notes = config.melodic ? melodicInterval(root, size, direction).map(note => note.midiNumber) : [root, root + size];
-    return { kind: config.kind, root, answer, notes, inversion: 0, direction };
+    // Melodic intervals never overlap, so only the harmonic form needs the limit.
+    if (config.melodic) return { kind: config.kind, root, answer, notes: melodicInterval(root, size, direction).map(note => note.midiNumber), inversion: 0, direction };
+    return { kind: config.kind, ...sounded(root, [root, root + size]), answer, inversion: 0, direction };
   }
   if (config.kind === 'bass') {
     const quality = triadQualities[Math.floor(random() * triadQualities.length)];
-    return { kind: config.kind, root, answer, notes: chord(root, quality, answerIndex).map(note => note.midiNumber), inversion: answerIndex, quality };
+    return { kind: config.kind, ...sounded(root, chord(root, quality, answerIndex).map(note => note.midiNumber)), answer, inversion: answerIndex, quality };
   }
   const inversion = config.inversions ? Math.floor(random() * (config.kind === 'triad' ? 3 : 4)) : 0;
   const pitches = config.kind === 'triad' ? chord(root, answer as ChordQuality, inversion) : seventhChord(root, answer as SeventhQuality, inversion);
-  return { kind: config.kind, root, answer, notes: pitches.map(note => note.midiNumber), inversion };
+  return { kind: config.kind, ...sounded(root, pitches.map(note => note.midiNumber)), answer, inversion };
 }
 
 export function recommendKind(attempts: { exercise: string; correct: boolean }[]): ExerciseKind {
