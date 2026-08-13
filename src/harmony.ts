@@ -161,10 +161,17 @@ export const templatesFor = (mode: HarmonyResponseMode) =>
   : mode === 'pivot' ? PROGRESSIONS.filter(item => item.pivotIndex !== undefined)
   : PROGRESSIONS;
 
-export function generateHarmony(seed: number, mode: HarmonyResponseMode = 'function'): HarmonyStimulus {
+/**
+ * `allowed` narrows the pool to a genre's characteristic progressions. It is
+ * ignored when it would empty the pool, so asking for a key change inside a genre
+ * that lists none still yields a modulation rather than nothing.
+ */
+export function generateHarmony(seed: number, mode: HarmonyResponseMode = 'function', allowed?: readonly string[]): HarmonyStimulus {
   const random = seededRandom(seed);
   const key = Math.floor(random() * 12);
-  const pool = templatesFor(mode);
+  const eligible = templatesFor(mode);
+  const narrowed = allowed ? eligible.filter(item => allowed.includes(item.id)) : eligible;
+  const pool = narrowed.length ? narrowed : eligible;
   return buildProgression(key, pool[Math.floor(random() * pool.length)]);
 }
 
