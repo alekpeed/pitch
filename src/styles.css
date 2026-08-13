@@ -227,3 +227,38 @@ html, body, #root { height: 100%; }
   .focus-play .hint { font-size: .72rem; }
   .focus-scroll { flex: 1 1 auto; min-height: 0; max-width: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
 }
+
+/* After answering, the full option grid is replaced by a one-line summary —
+   the grid's job is done, and on a phone it was pushing the feedback (and the
+   whole reason for looking at the screen) below the fold. */
+.picked-summary { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .55rem 0; border-bottom: 1px solid #ffffff12; margin-bottom: .6rem; }
+.picked-summary span { font-size: .78rem; color: #7f8b83; }
+.picked-summary b { font-size: .95rem; text-transform: capitalize; padding: .2rem .65rem; border-radius: 999px; border: 1px solid currentColor; }
+.picked-summary b.correct { color: #a6c98f; }
+.picked-summary b.wrong { color: #cf8f8f; }
+
+/* Post-answer, the feedback IS the screen. The base .feedback style lays its
+   children out in a row for desktop, which on a phone pushed the comparison
+   panel past the right edge — here it is a plain full-width column. */
+.focused-drill .feedback { display: flex; flex-direction: column; align-items: stretch; text-align: left; max-width: none; margin: 0; border-top: 0; padding-top: 0; gap: .6rem; }
+.focused-drill .feedback > div { min-width: 0; max-width: 100%; }
+.focused-drill .feedback > div:first-child { display: grid; gap: .3rem; }
+.focused-drill .error-replay { margin-top: 0; }
+.picked-summary .mini-replay { width: 2.2rem; height: 2.2rem; border-radius: 50%; border: 1px solid #c6a76955; background: #c6a76912; color: #d9ba7b; cursor: pointer; font-size: .8rem; flex: 0 0 auto; }
+.picked-summary .mini-replay:disabled { opacity: .4; }
+@media (max-width: 750px) {
+  .focused-drill .error-replay .replay-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem; }
+  .focused-drill .error-replay .replay-actions button { padding: .55rem .4rem; font-size: .76rem; }
+  .focused-drill .feedback .note-map small { font-size: .62rem; }
+}
+
+/* The feedback grid's auto column was being sized by the note-map's key strip,
+   whose keys deliberately don't shrink — 26 keys ≈ 409px, wider than a phone.
+   The track grew past the container and everything in it clipped at the screen
+   edge. Pin the track to the container and let the key strip scroll inside
+   itself, which is what its own overflow-x was for all along. */
+.feedback > div { grid-template-columns: minmax(0, 1fr); }
+.feedback > div > * { min-width: 0; }
+.note-map { min-width: 0; }
+.note-map .keys { max-width: 100%; }
+.focused-drill .error-replay .replay-actions button { min-width: 0; }

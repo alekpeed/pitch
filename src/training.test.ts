@@ -14,6 +14,16 @@ describe('training engine', () => {
     for (let seed = 0; seed < 10; seed += 1) { const stimulus = generateStimulus(seed, config({ kind: 'bass' })); expect(stimulus.inversion).toBe(['root in bass', 'third in bass', 'fifth in bass'].indexOf(stimulus.answer)); }
   });
   it('recommends an unpracticed or weaker area', () => expect(recommendKind([{ exercise: 'scale-degree-recognition', correct: true }])).toBe('interval'));
+  it('keeps the same interval when only the playback style changes', () => {
+    // The together / one-after-another toggle changes presentation, never the
+    // question — toggling mid-prompt must not hand the user a new interval.
+    for (let seed = 0; seed < 30; seed += 1) {
+      const together = generateStimulus(seed, config({ kind: 'interval', melodic: false }));
+      const separate = generateStimulus(seed, config({ kind: 'interval', melodic: true }));
+      expect(separate.answer).toBe(together.answer);
+      expect(separate.root % 12).toBe(together.root % 12);
+    }
+  });
   it('never sounds a simultaneous stimulus below the low-interval limit', () => {
     for (const kind of ['triad', 'seventh', 'bass'] as const)
       for (const register of ['low', 'middle', 'high'] as const)
