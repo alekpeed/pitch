@@ -186,6 +186,25 @@ const ladders: { key: LadderKey; values: readonly unknown[] }[] = [
   { key: 'melodic', values: [true, false] },
 ];
 
+/** Total raises available across every ladder: the top of the difficulty scale. */
+export const MAX_DIFFICULTY_LEVEL = ladders.reduce((total, ladder) => total + ladder.values.length - 1, 0);
+/** The bottom of every ladder, used as the origin for a levelled difficulty scale. */
+export const EASIEST_DRILL: Omit<DrillConfig, 'kind'> = {
+  rootPool: 'white', inversions: false, melodic: true, register: 'middle', timbre: 'piano',
+  vocabulary: 'diatonic', presentation: 'block', exposure: 'sustained', rhythm: 'steady',
+  memoryDelay: 'none', deadline: 'none',
+};
+
+/**
+ * Turns the one-dimension-at-a-time ladders into a single monotone scale, so a
+ * staircase search has something ordered to search over.
+ */
+export function configAtLevel(kind: DrillConfig['kind'], level: number): DrillConfig {
+  let config: DrillConfig = { ...EASIEST_DRILL, kind };
+  for (let step = 0; step < Math.max(0, Math.min(level, MAX_DIFFICULTY_LEVEL)); step += 1) config = adjustDrill(config, 'raise');
+  return config;
+}
+
 const rungOf = (config: DrillConfig, key: LadderKey) => {
   const ladder = ladders.find(item => item.key === key)!;
   const index = ladder.values.indexOf(config[key] as unknown);

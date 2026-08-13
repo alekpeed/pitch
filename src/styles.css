@@ -77,3 +77,11 @@
 .note-map .key.defining { background: #c6a769; box-shadow: 0 0 0 1px rgba(255, 255, 255, .35) inset; }
 .note-map .key b { color: #12180f; font-weight: 700; padding-bottom: .15rem; }
 .listen[disabled] { opacity: .4; cursor: not-allowed; }
+
+/* Diagnostic envelope results */
+.diagnostic-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .6rem; margin: .8rem 0 1.2rem; }
+.diagnostic-results > div { display: flex; flex-direction: column; gap: .18rem; padding: .8rem .9rem; border-radius: 10px; border: 1px solid rgba(198, 167, 105, .25); background: rgba(255, 255, 255, .02); }
+.diagnostic-results b { text-transform: capitalize; }
+.diagnostic-results span { font-variant-numeric: tabular-nums; color: #c6a769; font-size: .85rem; }
+.diagnostic-results small { opacity: .68; font-size: .76rem; }
+.diagnostic-results .conditions { opacity: .55; }
