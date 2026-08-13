@@ -33,3 +33,30 @@
 .session-bar-actions { display: flex; gap: .5rem; }
 .session-bar button { font-size: .78rem; padding: .35rem .8rem; }
 .session-bar button.ghost { background: transparent; opacity: .7; }
+
+/* Dashboard buckets */
+.buckets { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .6rem; margin-bottom: 1rem; }
+.bucket { display: flex; flex-direction: column; gap: .3rem; padding: .75rem .9rem; border-radius: 10px; border: 1px solid rgba(198, 167, 105, .2); background: rgba(255, 255, 255, .02); }
+.bucket b { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; }
+.bucket span { font-size: .85rem; opacity: .82; text-transform: capitalize; }
+.bucket.needs-work { border-color: rgba(207, 143, 143, .5); } .bucket.needs-work b { color: #cf8f8f; }
+.bucket.improving { border-color: rgba(166, 201, 143, .5); } .bucket.improving b { color: #a6c98f; }
+.bucket.stagnant { border-color: rgba(198, 167, 105, .5); } .bucket.stagnant b { color: #c6a769; }
+.bucket.now-reliable { border-color: rgba(143, 183, 217, .5); } .bucket.now-reliable b { color: #8fb7d9; }
+
+/* Difficulty envelope */
+.envelope-line { display: block; opacity: .62; font-size: .78rem; margin-top: .2rem; }
+.envelope-table { display: flex; flex-direction: column; gap: .3rem; margin: .5rem 0 1rem; }
+.envelope-cell { display: grid; grid-template-columns: 1fr auto auto auto auto; gap: .5rem .8rem; align-items: baseline; padding: .45rem .7rem; border-radius: 8px; border: 1px solid rgba(198, 167, 105, .18); font-size: .82rem; }
+.envelope-cell .cond { font-weight: 600; }
+.envelope-cell .figure { font-variant-numeric: tabular-nums; opacity: .78; }
+.envelope-cell .verdict { font-size: .68rem; letter-spacing: .07em; text-transform: uppercase; opacity: .75; }
+.envelope-cell.reliable { border-color: rgba(166, 201, 143, .5); } .envelope-cell.reliable .verdict { color: #a6c98f; }
+.envelope-cell.breakdown { border-color: rgba(207, 143, 143, .5); } .envelope-cell.breakdown .verdict { color: #cf8f8f; }
+
+/* Generalization + confusion trend */
+.generalization { display: flex; flex-wrap: wrap; gap: .4rem; margin: .4rem 0 1rem; }
+.generalization span { font-size: .78rem; padding: .2rem .6rem; border-radius: 999px; border: 1px solid currentColor; opacity: .85; }
+.generalization .yes { color: #a6c98f; } .generalization .no { color: #c6a769; }
+.trend { font-style: normal; font-size: .66rem; letter-spacing: .07em; text-transform: uppercase; opacity: .8; }
+.trend.rising { color: #cf8f8f; } .trend.falling { color: #a6c98f; } .trend.steady { opacity: .55; }

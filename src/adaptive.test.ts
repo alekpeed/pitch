@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   adjustDrill, assembleSession, challengeSignal, confusionPressure, DEFAULT_MIX, difficultyEnvelope,
   generalization, generalizationGap, interleave, masteryFor, skillPriority, skillStates, slotCounts,
-  rankCatalog, reasonFor, weightedConfusions, type SessionSlot,
+  dashboardBucket, envelopeSummary, rankCatalog, reasonFor, weightedConfusions, type SessionSlot,
 } from './adaptive';
 import type { Attempt } from './storage';
 import type { DrillConfig } from './training';
@@ -86,6 +86,17 @@ describe('difficulty envelope', () => {
   it('keeps difficulty values that contain spaces intact', () => {
     const envelope = difficultyEnvelope(many(8, { difficulty: { range: 'MIDI 40-84' } }), 'triad-recognition');
     expect(envelope.cells[0]).toMatchObject({ dimension: 'range', value: 'MIDI 40-84' });
+  });
+  it('withholds a breakdown verdict when a dimension has only one observed value', () => {
+    // Every attempt is on piano, so a low score says the skill is weak, not that
+    // piano is a hard condition.
+    const single = difficultyEnvelope(many(10, { correct: false, response: 'minor', difficulty: { timbre: 'piano' } }), 'triad-recognition');
+    expect(single.breakdown).toEqual([]);
+    const contrasted = difficultyEnvelope([
+      ...many(8, { difficulty: { timbre: 'rhodes' } }),
+      ...many(10, { correct: false, response: 'minor', difficulty: { timbre: 'piano' } }),
+    ], 'triad-recognition');
+    expect(contrasted.breakdown).toContain('timbre=piano');
   });
   it('treats a dimension as generalized only across two reliable values', () => {
     const spread = generalization(difficultyEnvelope(evidence, 'triad-recognition'));
@@ -291,5 +302,40 @@ describe('degenerate evidence', () => {
       dimensions.add(changed); current = raised;
     }
     expect([...dimensions].sort()).toEqual(['exposure', 'inversions', 'melodic', 'presentation', 'register', 'rhythm', 'rootPool', 'timbre', 'vocabulary']);
+  });
+});
+
+describe('dashboard buckets and envelope summary', () => {
+  const steady = { earlierAccuracy: .8, recentAccuracy: .8, comparisonEvidence: 20 };
+  const stateFor = (attempts: Attempt[]) => skillStates({ attempts, now: NOW })[0];
+
+  it('flags a failing skill as needing work', () => {
+    expect(dashboardBucket(stateFor(many(10, { correct: false, response: 'minor' })), steady)).toBe('Needs work');
+  });
+  it('calls a skill reliable once it has cleared the mastery ladder', () => {
+    const varied = [...many(12, { difficulty: { register: 'middle' } }), ...many(12, { difficulty: { register: 'high' } })];
+    expect(dashboardBucket(stateFor(varied), steady)).toBe('Now reliable');
+  });
+  it('separates improving from stagnant on comparable evidence', () => {
+    // 80% accurate: above the needs-work threshold, below the reliable ladder.
+    const mid = stateFor([...many(8), ...many(2, { correct: false, response: 'minor' })]);
+    expect(dashboardBucket(mid, { earlierAccuracy: .5, recentAccuracy: .8, comparisonEvidence: 12 })).toBe('Improving');
+    expect(dashboardBucket(mid, { earlierAccuracy: .78, recentAccuracy: .79, comparisonEvidence: 20 })).toBe('Stagnant');
+  });
+  it('places nothing when the evidence is too thin', () => {
+    expect(dashboardBucket(stateFor(many(2)), { earlierAccuracy: 0, recentAccuracy: 0, comparisonEvidence: 1 })).toBeUndefined();
+  });
+  it('summarises the envelope with the conditions that hold and the ones that break', () => {
+    const mixed = [
+      ...many(8, { difficulty: { register: 'middle' } }),
+      ...many(8, { correct: false, response: 'minor', difficulty: { register: 'low' } }),
+    ];
+    const summary = envelopeSummary(stateFor(mixed));
+    expect(summary).toContain('reliable across register=middle');
+    expect(summary).toContain('breaks down at register=low');
+  });
+  it('keeps real-music performance out of the synthetic figure', () => {
+    const summary = envelopeSummary(stateFor([...many(10), ...many(5, { correct: false, response: 'minor', transferCategory: 'real-music' })]));
+    expect(summary).toContain('in real music over 5');
   });
 });

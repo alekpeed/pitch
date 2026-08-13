@@ -94,6 +94,11 @@ export function difficultyEnvelope(attempts: Attempt[], exercise: string, minEvi
     const key = [dimension, String(value)].join(KEY_SEP);
     cells.set(key, [...(cells.get(key) ?? []), item]);
   }));
+  // "Breaks down at X" is a comparative claim: with only one value observed on a
+  // dimension it cannot separate a hard condition from a weak skill, so it is
+  // withheld. Reliability under a condition stands on its own and is not.
+  const observed = new Map<string, number>();
+  [...cells.keys()].forEach(key => { const dimension = key.split(KEY_SEP)[0]; observed.set(dimension, (observed.get(dimension) ?? 0) + 1); });
   const built = [...cells].map(([key, items]): EnvelopeCell => {
     const [dimension, value] = key.split(KEY_SEP);
     const accuracy = rate(items);
@@ -101,7 +106,7 @@ export function difficultyEnvelope(attempts: Attempt[], exercise: string, minEvi
       dimension, value, attempts: items.length, accuracy,
       medianLatencyMs: median(items.map(item => item.latencyMs)),
       reliable: items.length >= minEvidence && accuracy >= .85,
-      breakdown: items.length >= minEvidence && accuracy < .7,
+      breakdown: items.length >= minEvidence && accuracy < .7 && (observed.get(dimension) ?? 0) >= 2,
     };
   }).sort((a, b) => a.dimension.localeCompare(b.dimension) || a.value.localeCompare(b.value));
   const label = (cell: EnvelopeCell) => `${cell.dimension}=${cell.value}`;
@@ -363,4 +368,36 @@ export function rankCatalog(input: RankInput): RankedExercise[] {
       reason: 'Not practiced yet',
     };
   }).sort((a, b) => b.priority - a.priority);
+}
+
+/* ------------------------------------------------------------- dashboard */
+
+export type Bucket = 'Needs work' | 'Now reliable' | 'Improving' | 'Stagnant';
+export interface TrendEvidence { earlierAccuracy: number; recentAccuracy: number; comparisonEvidence: number }
+
+/**
+ * The four dashboard states from the progress-journal spec. Returns undefined
+ * rather than guessing when there is not yet enough evidence to place a skill.
+ */
+export function dashboardBucket(state: SkillState, trend: TrendEvidence): Bucket | undefined {
+  const pressure = confusionPressure(state.confusions, state.exercise);
+  if (state.attempts >= 4 && (state.accuracy < .7 || pressure > .3)) return 'Needs work';
+  if (state.mastery !== 'Introduced' && state.mastery !== 'Developing') return 'Now reliable';
+  const change = trend.recentAccuracy - trend.earlierAccuracy;
+  if (trend.comparisonEvidence >= 8 && change >= .1) return 'Improving';
+  if (trend.comparisonEvidence >= 12 && Math.abs(change) < .05 && state.accuracy < .85) return 'Stagnant';
+  return undefined;
+}
+
+/**
+ * One sentence in the shape the spec uses for a difficulty envelope: accuracy and
+ * latency, the conditions that hold, the conditions that break, and transfer kept
+ * separate from synthetic.
+ */
+export function envelopeSummary(state: SkillState): string {
+  const parts = [`${Math.round(state.accuracy * 100)}% at ${(state.medianLatencyMs / 1000).toFixed(1)}s`];
+  if (state.envelope.reliable.length) parts.push(`reliable across ${state.envelope.reliable.join(', ')}`);
+  if (state.envelope.breakdown.length) parts.push(`breaks down at ${state.envelope.breakdown.join(', ')}`);
+  if (state.transferAttempts) parts.push(`${Math.round(state.transferAccuracy * 100)}% in real music over ${state.transferAttempts}`);
+  return parts.join('; ');
 }
