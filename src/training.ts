@@ -1,25 +1,39 @@
 import {
-  chord, CHROMATIC_DEGREES, CHROMATIC_STEPS, liftAboveMud, MAJOR_SCALE, melodicInterval, MODE_NAMES, MODES,
-  NOTE_NAMES, seededRandom, seventhChord, type ChordQuality, type SeventhQuality,
+  ALTERED_QUALITIES, ALTERED_STRUCTURES, chord, CHROMATIC_DEGREES, CHROMATIC_STEPS, EXTENSION_QUALITIES,
+  EXTENSION_STRUCTURES, liftAboveMud, MAJOR_SCALE, melodicInterval, MODE_NAMES, MODES, NOTE_NAMES,
+  seededRandom, SEVENTH_QUALITIES, seventhChord, TERTIAN_TRIADS, TRIAD_QUALITIES, voiceChord,
+  type AlteredQuality, type ChordQuality, type ExtensionQuality, type SeventhQuality,
 } from './theory';
 
-export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass' | 'absolute-note' | 'tonal-center' | 'mode';
+export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass' | 'absolute-note' | 'tonal-center' | 'mode' | 'extension' | 'altered' | 'decomposition' | 'slash-chord';
 export type Vocabulary = 'diatonic' | 'chromatic';
+export type Presentation = 'block' | 'arpeggiated';
+export type Exposure = 'sustained' | 'short';
+export type Rhythm = 'steady' | 'syncopated';
 export type Register = 'low' | 'middle' | 'high' | 'random';
-export type Timbre = 'piano' | 'rhodes' | 'organ';
-export interface DrillConfig { kind: ExerciseKind; rootPool: 'all' | 'white'; inversions: boolean; melodic: boolean; register: Register; timbre: Timbre; vocabulary?: Vocabulary }
-export interface Stimulus { kind: ExerciseKind; root: number; answer: string; notes: number[]; inversion: number; contextNotes?: number[]; direction?: 'ascending' | 'descending'; quality?: string; phrase?: number[][]; melodic?: boolean; explanation?: string }
+export type Timbre = 'piano' | 'rhodes' | 'organ' | 'guitar' | 'strings' | 'pad';
+export interface DrillConfig { kind: ExerciseKind; rootPool: 'all' | 'white'; inversions: boolean; melodic: boolean; register: Register; timbre: Timbre; vocabulary?: Vocabulary; presentation?: Presentation; exposure?: Exposure; rhythm?: Rhythm }
+export interface Stimulus { kind: ExerciseKind; root: number; answer: string; notes: number[]; inversion: number; contextNotes?: number[]; direction?: 'ascending' | 'descending'; quality?: string; phrase?: number[][]; melodic?: boolean; explanation?: string; question?: string }
 
 export const ANSWERS: Record<ExerciseKind, readonly string[]> = {
   'scale-degree': ['1 · tonic', '2 · supertonic', '3 · mediant', '4 · subdominant', '5 · dominant', '6 · submediant', '7 · leading tone'],
   interval: ['minor 2nd', 'major 2nd', 'minor 3rd', 'major 3rd', 'perfect 4th', 'tritone', 'perfect 5th', 'minor 6th', 'major 6th', 'minor 7th', 'major 7th', 'octave'],
-  triad: ['major', 'minor', 'diminished', 'augmented'],
-  seventh: ['major 7', 'dominant 7', 'minor 7', 'half-diminished 7'],
+  triad: TRIAD_QUALITIES,
+  seventh: SEVENTH_QUALITIES,
   bass: ['root in bass', 'third in bass', 'fifth in bass'],
   'absolute-note': NOTE_NAMES,
   'tonal-center': NOTE_NAMES,
-  mode: MODE_NAMES
+  mode: MODE_NAMES,
+  extension: EXTENSION_QUALITIES,
+  altered: ALTERED_QUALITIES,
+  // Decomposition and slash chords both answer with a note name, so one grid serves both.
+  decomposition: NOTE_NAMES,
+  'slash-chord': NOTE_NAMES
 };
+
+// Indexed into the chord's own structure, so the "3rd" is whatever third that
+// quality actually has rather than a fixed interval.
+const CHORD_MEMBERS = ['root', '3rd', '5th', '7th'] as const;
 
 /** Scale-degree vocabulary widens to all twelve degrees as difficulty rises. */
 export function answersFor(config: DrillConfig): readonly string[] {
@@ -37,7 +51,7 @@ const whitePitchClasses = [0, 2, 4, 5, 7, 9, 11];
 // point where close spacing stays intelligible, which is the main reason drills
 // sounded muddy.
 const registerBases: Record<Exclude<Register, 'random'>, number> = { low: 48, middle: 55, high: 62 };
-const triadQualities: ChordQuality[] = ['major', 'minor', 'diminished', 'augmented'];
+const triadQualities: ChordQuality[] = TERTIAN_TRIADS;
 
 // Lifts a stimulus clear of the low-interval limit, keeping the reported root in
 // step with the notes that actually sound.
@@ -83,12 +97,53 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
     const quality = triadQualities[Math.floor(random() * triadQualities.length)];
     return { kind: config.kind, ...sounded(root, chord(root, quality, answerIndex).map(note => note.midiNumber)), answer, inversion: answerIndex, quality };
   }
-  const inversion = config.inversions ? Math.floor(random() * (config.kind === 'triad' ? 3 : 4)) : 0;
-  const pitches = config.kind === 'triad' ? chord(root, answer as ChordQuality, inversion) : seventhChord(root, answer as SeventhQuality, inversion);
-  return { kind: config.kind, ...sounded(root, pitches.map(note => note.midiNumber)), answer, inversion };
+  if (config.kind === 'extension' || config.kind === 'altered') {
+    const structure = config.kind === 'extension'
+      ? EXTENSION_STRUCTURES[answer as ExtensionQuality]
+      : ALTERED_STRUCTURES[answer as AlteredQuality];
+    const voiced = voiceChord(root, structure).map(note => note.midiNumber);
+    return { kind: config.kind, ...sounded(root, voiced), answer, inversion: 0, quality: answer, explanation: `${NOTE_NAMES[root % 12]}${answer} \u2014 ${structure.length} voices.` };
+  }
+  if (config.kind === 'decomposition') {
+    const quality = SEVENTH_QUALITIES[Math.floor(random() * SEVENTH_QUALITIES.length)];
+    const voiced = seventhChord(root, quality);
+    const memberIndex = Math.floor(random() * CHORD_MEMBERS.length);
+    const heard = sounded(root, voiced.map(note => note.midiNumber));
+    const shift = heard.root - root;
+    const target = voiced[memberIndex].midiNumber + shift;
+    return {
+      kind: config.kind, ...heard, answer: NOTE_NAMES[target % 12], inversion: 0, quality,
+      question: `Name the ${CHORD_MEMBERS[memberIndex]} of this chord.`,
+      explanation: `${NOTE_NAMES[heard.root % 12]} ${quality} \u2014 its ${CHORD_MEMBERS[memberIndex]} is ${NOTE_NAMES[target % 12]}.`,
+    };
+  }
+  if (config.kind === 'slash-chord') {
+    const quality = triadQualities[Math.floor(random() * triadQualities.length)];
+    // The bass is displaced from the triad root, and may be outside the triad
+    // entirely, which is what separates a slash chord from a plain inversion.
+    const bass = root - (1 + Math.floor(random() * 11));
+    const voiced = [bass, ...chord(root, quality).map(note => note.midiNumber)];
+    const heard = sounded(bass, voiced);
+    const shift = heard.root - bass;
+    const askBass = random() > .5;
+    const upperRoot = root + shift;
+    const label = `${NOTE_NAMES[upperRoot % 12]} ${quality} / ${NOTE_NAMES[(bass + shift) % 12]}`;
+    return {
+      kind: config.kind, root: heard.root, notes: heard.notes, inversion: 0, quality,
+      answer: NOTE_NAMES[(askBass ? bass + shift : upperRoot) % 12],
+      question: askBass ? 'Name the bass note.' : 'Name the root of the upper triad.',
+      explanation: `${label} \u2014 upper triad and bass are named independently.`,
+    };
+  }
+  const pitches = config.kind === 'triad' ? chord(root, answer as ChordQuality, 0) : seventhChord(root, answer as SeventhQuality, 0);
+  // Inversion is capped by the notes a quality actually has, so a power chord
+  // cannot be asked for a third inversion it does not possess.
+  const inversion = config.inversions ? Math.floor(random() * Math.min(config.kind === 'triad' ? 3 : 4, pitches.length)) : 0;
+  const voiced = config.kind === 'triad' ? chord(root, answer as ChordQuality, inversion) : seventhChord(root, answer as SeventhQuality, inversion);
+  return { kind: config.kind, ...sounded(root, voiced.map(note => note.midiNumber)), answer, inversion };
 }
 
-export const RECOGNITION_KINDS: readonly ExerciseKind[] = ['scale-degree', 'interval', 'triad', 'seventh', 'bass', 'absolute-note', 'tonal-center', 'mode'];
+export const RECOGNITION_KINDS: readonly ExerciseKind[] = ['scale-degree', 'interval', 'triad', 'seventh', 'bass', 'absolute-note', 'tonal-center', 'mode', 'extension', 'altered', 'decomposition', 'slash-chord'];
 
 export function recommendKind(attempts: { exercise: string; correct: boolean }[]): ExerciseKind {
   const kinds: ExerciseKind[] = [...RECOGNITION_KINDS];

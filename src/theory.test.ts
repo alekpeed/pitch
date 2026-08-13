@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { chord, frequency, liftAboveMud, minimumSpacing, pitch, respectsLowIntervalLimit, seededRandom } from './theory';
+import {
+  ALTERED_QUALITIES, ALTERED_STRUCTURES, chord, EXTENSION_QUALITIES, EXTENSION_STRUCTURES, frequency,
+  liftAboveMud, minimumSpacing, pitch, respectsLowIntervalLimit, seededRandom, SEVENTH_QUALITIES,
+  seventhChord, TRIAD_QUALITIES, voiceChord,
+} from './theory';
 
 describe('music theory model', () => {
   it('represents a sounding pitch independently from its spelling', () => expect(pitch(60)).toEqual({ midiNumber: 60, pitchClass: 0, octave: 4, spelling: 'C' }));
@@ -26,4 +30,23 @@ describe('music theory model', () => {
   });
   it('leaves an already clean voicing untouched', () => expect(liftAboveMud([60, 64, 67])).toEqual([60, 64, 67]));
   it('never lifts a voicing past the ceiling', () => expect(Math.max(...liftAboveMud([37, 38], 84))).toBeLessThanOrEqual(84));
+  it('gives every quality in a tier a distinct pitch set, so no prompt has two right answers', () => {
+    const tiers = [
+      TRIAD_QUALITIES.map(quality => chord(60, quality).map(note => note.midiNumber).join()),
+      SEVENTH_QUALITIES.map(quality => seventhChord(60, quality).map(note => note.midiNumber).join()),
+      EXTENSION_QUALITIES.map(quality => EXTENSION_STRUCTURES[quality].join()),
+      ALTERED_QUALITIES.map(quality => ALTERED_STRUCTURES[quality].join()),
+    ];
+    tiers.forEach(tier => expect(new Set(tier).size).toBe(tier.length));
+  });
+  it('builds the added triad and seventh qualities', () => {
+    expect(chord(60, 'sus4').map(note => note.midiNumber)).toEqual([60, 65, 67]);
+    expect(chord(60, 'power').map(note => note.midiNumber)).toEqual([60, 67]);
+    expect(seventhChord(60, 'diminished 7').map(note => note.midiNumber)).toEqual([60, 63, 66, 69]);
+    expect(seventhChord(60, 'minor-major 7').map(note => note.midiNumber)).toEqual([60, 63, 67, 71]);
+  });
+  it('inverts within the notes a chord actually has', () => {
+    expect(chord(60, 'power', 2).map(note => note.midiNumber)).toEqual([67, 72]);
+    expect(voiceChord(60, [0, 4, 7, 10, 14], 1).map(note => note.midiNumber)).toEqual([64, 67, 70, 74, 72]);
+  });
 });

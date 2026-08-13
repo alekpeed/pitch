@@ -132,12 +132,12 @@ describe('difficulty stepping', () => {
   it('is a no-op when holding', () => expect(adjustDrill(config, 'hold')).toEqual(config));
   it('lowers the hardest dimension first', () => {
     const hard: DrillConfig = { ...config, rootPool: 'all', timbre: 'organ' };
-    expect(adjustDrill(hard, 'lower').timbre).toBe('rhodes');
+    expect(adjustDrill(hard, 'lower').timbre).toBe('strings');
   });
   it('stays put at the floor and the ceiling', () => {
-    const easiest: DrillConfig = { kind: 'triad', rootPool: 'white', inversions: false, melodic: true, register: 'middle', timbre: 'piano' };
+    const easiest: DrillConfig = { kind: 'triad', rootPool: 'white', inversions: false, melodic: true, register: 'middle', timbre: 'piano', vocabulary: 'diatonic', presentation: 'block', exposure: 'sustained', rhythm: 'steady' };
     expect(adjustDrill(easiest, 'lower')).toEqual(easiest);
-    const hardest: DrillConfig = { kind: 'triad', rootPool: 'all', inversions: true, melodic: false, register: 'random', timbre: 'organ' };
+    const hardest: DrillConfig = { kind: 'triad', rootPool: 'all', inversions: true, melodic: false, register: 'random', timbre: 'pad', vocabulary: 'chromatic', presentation: 'arpeggiated', exposure: 'short', rhythm: 'syncopated' };
     expect(adjustDrill(hardest, 'raise')).toEqual(hardest);
   });
 });
@@ -280,5 +280,16 @@ describe('catalog ranking', () => {
 describe('degenerate evidence', () => {
   it('ignores an error whose answer matches the expectation', () => {
     expect(weightedConfusions(many(4, { correct: false, expected: 'major', response: 'major' }), NOW)).toEqual([]);
+  });
+  it('can step every dimension the drill config exposes', () => {
+    const dimensions = new Set<string>();
+    let current: DrillConfig = { kind: 'triad', rootPool: 'white', inversions: false, melodic: true, register: 'middle', timbre: 'piano', vocabulary: 'diatonic', presentation: 'block', exposure: 'sustained', rhythm: 'steady' };
+    for (let step = 0; step < 20; step += 1) {
+      const raised = adjustDrill(current, 'raise');
+      const changed = (Object.keys(raised) as (keyof DrillConfig)[]).find(key => raised[key] !== current[key]);
+      if (!changed) break;
+      dimensions.add(changed); current = raised;
+    }
+    expect([...dimensions].sort()).toEqual(['exposure', 'inversions', 'melodic', 'presentation', 'register', 'rhythm', 'rootPool', 'timbre', 'vocabulary']);
   });
 });

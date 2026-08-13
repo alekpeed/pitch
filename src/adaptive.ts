@@ -164,13 +164,17 @@ export function challengeSignal(accuracy: number, evidenceCount: number, band = 
   return 'hold';
 }
 
-type LadderKey = 'rootPool' | 'register' | 'inversions' | 'timbre' | 'melodic';
+type LadderKey = 'rootPool' | 'register' | 'inversions' | 'timbre' | 'melodic' | 'vocabulary' | 'presentation' | 'exposure' | 'rhythm';
 /** Each ladder runs easiest -> hardest. Order of keys is the tie-break when raising. */
 const ladders: { key: LadderKey; values: readonly unknown[] }[] = [
   { key: 'rootPool', values: ['white', 'all'] },
   { key: 'inversions', values: [false, true] },
+  { key: 'vocabulary', values: ['diatonic', 'chromatic'] },
+  { key: 'presentation', values: ['block', 'arpeggiated'] },
   { key: 'register', values: ['middle', 'high', 'low', 'random'] },
-  { key: 'timbre', values: ['piano', 'rhodes', 'organ'] },
+  { key: 'timbre', values: ['piano', 'rhodes', 'guitar', 'strings', 'organ', 'pad'] },
+  { key: 'rhythm', values: ['steady', 'syncopated'] },
+  { key: 'exposure', values: ['sustained', 'short'] },
   { key: 'melodic', values: [true, false] },
 ];
 

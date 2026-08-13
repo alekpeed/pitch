@@ -61,10 +61,62 @@ export class AudioEngine {
     const chorus=context.createDelay(.03); chorus.delayTime.value=.012; bus.connect(saturation).connect(leslie); leslie.connect(this.mix!.dry); leslie.connect(chorus).connect(this.mix!.dry); bus.connect(this.mix!.room);
   }
 
+  /**
+   * Karplus-Strong plucked string. The loop gain applies once per period, so
+   * higher notes decay faster, as they do on a real instrument.
+   */
+  private pluckedVoice(note: Pitch, start: number, duration: number, level: number) {
+    const context = this.context!; const when = Math.max(start, context.currentTime + .008);
+    const frequency = 440 * 2 ** ((note.midiNumber - 69) / 12);
+    const period = Math.max(2, Math.round(context.sampleRate / frequency));
+    const total = Math.floor(context.sampleRate * (duration + .7));
+    const buffer = context.createBuffer(1, total, context.sampleRate); const data = buffer.getChannelData(0);
+    for (let index = 0; index < period; index += 1) data[index] = Math.random() * 2 - 1;
+    for (let index = period; index < total; index += 1) data[index] = .997 * .5 * (data[index - period] + data[index - period + 1]);
+    const source = context.createBufferSource(); source.buffer = buffer;
+    const body = context.createBiquadFilter(); body.type = 'lowpass'; body.frequency.value = 3400; body.Q.value = .5;
+    const envelope = context.createGain(); const peak = level * .85;
+    envelope.gain.setValueAtTime(.0001, when); envelope.gain.exponentialRampToValueAtTime(peak, when + .006);
+    envelope.gain.setValueAtTime(peak, when + Math.max(.02, duration)); envelope.gain.exponentialRampToValueAtTime(.0001, when + duration + .5);
+    source.connect(body).connect(envelope); envelope.connect(this.mix!.dry); envelope.connect(this.mix!.room);
+    source.start(when); source.stop(when + duration + .55);
+  }
+
+  /** Bowed strings and soft pad share a detuned-stack shape; only the envelope and filter differ. */
+  private sustainedVoice(note: Pitch, start: number, duration: number, level: number, timbre: 'strings' | 'pad') {
+    const context = this.context!; const when = Math.max(start, context.currentTime + .008);
+    const frequency = 440 * 2 ** ((note.midiNumber - 69) / 12);
+    const strings = timbre === 'strings';
+    const attack = strings ? .14 : .5; const release = strings ? .4 : 1;
+    const envelope = context.createGain(); const peak = level * (strings ? .8 : .68);
+    envelope.gain.setValueAtTime(.0001, when); envelope.gain.exponentialRampToValueAtTime(peak, when + attack);
+    envelope.gain.setValueAtTime(peak, when + Math.max(attack, duration)); envelope.gain.exponentialRampToValueAtTime(.0001, when + duration + release);
+    const tone = context.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = strings ? 2700 : 1500; tone.Q.value = .6;
+    const voices = (strings ? [-7, 0, 8] : [-11, 0, 11]).map(cents => {
+      const oscillator = context.createOscillator(); oscillator.type = strings ? 'sawtooth' : 'triangle';
+      oscillator.frequency.value = frequency; oscillator.detune.value = cents;
+      const partial = context.createGain(); partial.gain.value = 1 / 3;
+      oscillator.connect(partial).connect(tone); oscillator.start(when); oscillator.stop(when + duration + release + .1);
+      return oscillator;
+    });
+    if (strings) {
+      const vibrato = context.createOscillator(); vibrato.frequency.value = 5.1;
+      const depth = context.createGain(); depth.gain.value = 7;
+      vibrato.connect(depth); voices.forEach(voice => depth.connect(voice.detune));
+      vibrato.start(when + attack); vibrato.stop(when + duration + release);
+    }
+    tone.connect(envelope); envelope.connect(this.mix!.dry); envelope.connect(this.mix!.room);
+  }
+
   private async schedule(notes: Pitch[], start: number, duration: number, melodic: boolean, timbre: Timbre) {
-    const level=polyphonyGain(notes.length); const tasks=notes.map((note,index)=>{ const when=start+index*(melodic?.7:.018); const velocity=.62+(index%3)*.1; if(timbre==='organ'){this.organVoice(note,when,duration,level);return Promise.resolve()} return this.sampledVoice(note,timbre,when,duration,velocity,level); }); await Promise.all(tasks);
+    const level=polyphonyGain(notes.length); const tasks=notes.map((note,index)=>{ const when=start+index*(melodic?.7:.018); const velocity=.62+(index%3)*.1; if(timbre==='organ'){this.organVoice(note,when,duration,level);return Promise.resolve()} if(timbre==='guitar'){this.pluckedVoice(note,when,duration,level);return Promise.resolve()} if(timbre==='strings'||timbre==='pad'){this.sustainedVoice(note,when,duration,level,timbre);return Promise.resolve()} return this.sampledVoice(note,timbre,when,duration,velocity,level); }); await Promise.all(tasks);
   }
 
   async play(notes: Pitch[], duration=1.35, melodic=false, timbre: Timbre='piano') { const context=await this.ready(); await this.schedule(notes,context.currentTime+.035,duration,melodic,timbre); }
+  /** Repeats one harmony on a rhythmic pattern, for rhythm-generalized recognition. */
+  async playRhythm(notes: Pitch[], onsets: number[], hit = .42, timbre: Timbre='piano') {
+    const context = await this.ready(); const start = context.currentTime + .035;
+    await Promise.all(onsets.map(offset => this.schedule(notes, start + offset, hit, false, timbre)));
+  }
   async playProgression(chords: Pitch[][], timbre: Timbre='piano') { const context=await this.ready(); const start=context.currentTime+.035; await Promise.all(chords.map((notes,index)=>this.schedule(notes,start+index*1.12,1.02,false,timbre))); }
 }

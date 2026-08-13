@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { answersFor, generateStimulus, RECOGNITION_KINDS, recommendKind, type DrillConfig } from './training';
-import { MODES, NOTE_NAMES, respectsLowIntervalLimit } from './theory';
+import { ALTERED_STRUCTURES, EXTENSION_STRUCTURES, MODES, NOTE_NAMES, respectsLowIntervalLimit } from './theory';
 const config = (overrides: Partial<DrillConfig> = {}): DrillConfig => ({ kind: 'seventh', rootPool: 'all', inversions: true, melodic: false, register: 'middle', timbre: 'piano', ...overrides });
 
 describe('training engine', () => {
@@ -75,5 +75,51 @@ describe('training engine', () => {
       expect(stimulus.notes.length).toBeGreaterThan(0);
       expect(answersFor(config({ kind }))).toContain(stimulus.answer);
     });
+  });
+  it('offers the full triad and seventh vocabularies', () => {
+    expect(answersFor(config({ kind: 'triad' }))).toEqual(expect.arrayContaining(['sus2', 'sus4', 'power']));
+    expect(answersFor(config({ kind: 'seventh' }))).toEqual(expect.arrayContaining(['minor-major 7', 'diminished 7', 'augmented 7', 'augmented major 7']));
+  });
+  it('sounds extensions and alterations with their stated structure', () => {
+    for (const kind of ['extension', 'altered'] as const) {
+      for (let seed = 0; seed < 24; seed += 1) {
+        const stimulus = generateStimulus(seed, config({ kind }));
+        // The two tables have disjoint keys, so index them through a shared shape.
+        const table: Record<string, readonly number[]> = kind === 'extension' ? EXTENSION_STRUCTURES : ALTERED_STRUCTURES;
+        const structure = table[stimulus.answer];
+        expect(stimulus.notes).toHaveLength(structure.length);
+        expect(stimulus.notes.map(note => note - stimulus.root)).toEqual([...structure]);
+      }
+    }
+  });
+  it('never asks for an inversion a quality does not have', () => {
+    for (let seed = 0; seed < 60; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'triad', inversions: true }));
+      expect(stimulus.inversion).toBeLessThan(stimulus.notes.length);
+    }
+  });
+  it('asks decomposition for a real member and answers with that pitch', () => {
+    for (let seed = 0; seed < 24; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'decomposition' }));
+      expect(stimulus.question).toMatch(/Name the (root|3rd|5th|7th) of this chord\./);
+      expect(stimulus.notes.map(note => NOTE_NAMES[note % 12])).toContain(stimulus.answer);
+    }
+  });
+  it('puts a displaced bass under the slash-chord triad and asks about one part at a time', () => {
+    const questions = new Set<string>();
+    for (let seed = 0; seed < 40; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'slash-chord' }));
+      questions.add(stimulus.question!);
+      // The bass is the lowest note and is not the triad root.
+      expect(Math.min(...stimulus.notes)).toBe(stimulus.notes[0]);
+      expect(stimulus.notes).toHaveLength(4);
+      expect(stimulus.explanation).toContain('/');
+    }
+    expect(questions.size).toBe(2);
+  });
+  it('keeps every new chord drill clear of the low-interval limit', () => {
+    for (const kind of ['extension', 'altered', 'decomposition', 'slash-chord'] as const)
+      for (let seed = 0; seed < 25; seed += 1)
+        expect(respectsLowIntervalLimit(generateStimulus(seed, config({ kind })).notes)).toBe(true);
   });
 });

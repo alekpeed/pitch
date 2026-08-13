@@ -1,7 +1,9 @@
 export const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'] as const;
 export type NoteName = (typeof NOTE_NAMES)[number];
-export type ChordQuality = 'major' | 'minor' | 'diminished' | 'augmented';
-export type SeventhQuality = 'major 7' | 'dominant 7' | 'minor 7' | 'half-diminished 7';
+export type ChordQuality = 'major' | 'minor' | 'diminished' | 'augmented' | 'sus2' | 'sus4' | 'power';
+export type SeventhQuality = 'major 7' | 'dominant 7' | 'minor 7' | 'half-diminished 7' | 'minor-major 7' | 'diminished 7' | 'augmented 7' | 'augmented major 7';
+export type ExtensionQuality = '6' | 'minor 6' | '6/9' | 'add9' | 'major 9' | 'dominant 9' | 'minor 9' | 'dominant 11' | 'minor 11' | 'dominant 13';
+export type AlteredQuality = '7\u266d9' | '7\u266f9' | '7\u266d5' | '7\u266f11' | '7\u266f5' | '7\u266d13' | '7\u266f9\u266f5';
 export interface Pitch { midiNumber: number; pitchClass: number; octave: number; spelling: NoteName }
 
 export function pitch(midiNumber: number): Pitch {
@@ -33,24 +35,53 @@ export const MODES: Record<ModeName, { intervals: readonly number[]; characteris
 };
 export const MODE_NAMES = Object.keys(MODES) as ModeName[];
 
-const structures: Record<ChordQuality, readonly number[]> = { major: [0, 4, 7], minor: [0, 3, 7], diminished: [0, 3, 6], augmented: [0, 4, 8] };
+const structures: Record<ChordQuality, readonly number[]> = {
+  major: [0, 4, 7], minor: [0, 3, 7], diminished: [0, 3, 6], augmented: [0, 4, 8],
+  sus2: [0, 2, 7], sus4: [0, 5, 7], power: [0, 7],
+};
 const seventhStructures: Record<SeventhQuality, readonly number[]> = {
   'major 7': [0, 4, 7, 11], 'dominant 7': [0, 4, 7, 10],
-  'minor 7': [0, 3, 7, 10], 'half-diminished 7': [0, 3, 6, 10]
+  'minor 7': [0, 3, 7, 10], 'half-diminished 7': [0, 3, 6, 10],
+  'minor-major 7': [0, 3, 7, 11], 'diminished 7': [0, 3, 6, 9],
+  'augmented 7': [0, 4, 8, 10], 'augmented major 7': [0, 4, 8, 11],
 };
+/** Colour tones. The 11th omits the 3rd, as it is voiced in practice. */
+export const EXTENSION_STRUCTURES: Record<ExtensionQuality, readonly number[]> = {
+  '6': [0, 4, 7, 9], 'minor 6': [0, 3, 7, 9], '6/9': [0, 4, 7, 9, 14], add9: [0, 4, 7, 14],
+  'major 9': [0, 4, 7, 11, 14], 'dominant 9': [0, 4, 7, 10, 14], 'minor 9': [0, 3, 7, 10, 14],
+  'dominant 11': [0, 7, 10, 14, 17], 'minor 11': [0, 3, 7, 10, 14, 17], 'dominant 13': [0, 4, 7, 10, 14, 21],
+};
+export const ALTERED_STRUCTURES: Record<AlteredQuality, readonly number[]> = {
+  '7\u266d9': [0, 4, 7, 10, 13], '7\u266f9': [0, 4, 7, 10, 15], '7\u266d5': [0, 4, 6, 10],
+  '7\u266f11': [0, 4, 7, 10, 18], '7\u266f5': [0, 4, 8, 10], '7\u266d13': [0, 4, 7, 10, 20],
+  '7\u266f9\u266f5': [0, 4, 8, 10, 15],
+};
+export const TRIAD_QUALITIES = Object.keys(structures) as ChordQuality[];
+export const SEVENTH_QUALITIES = Object.keys(seventhStructures) as SeventhQuality[];
+export const EXTENSION_QUALITIES = Object.keys(EXTENSION_STRUCTURES) as ExtensionQuality[];
+export const ALTERED_QUALITIES = Object.keys(ALTERED_STRUCTURES) as AlteredQuality[];
+/** Tertian qualities only — the ones with a real third and fifth to put in the bass. */
+export const TERTIAN_TRIADS: ChordQuality[] = ['major', 'minor', 'diminished', 'augmented'];
+
+const rotate = (notes: number[], inversion: number) => {
+  const voiced = [...notes];
+  for (let index = 0; index < Math.min(inversion, voiced.length - 1); index += 1) voiced.push((voiced.shift() as number) + 12);
+  return voiced;
+};
+
+/** Builds any structure from the tables above, inverting within the notes it has. */
+export function voiceChord(rootMidi: number, intervals: readonly number[], inversion = 0): Pitch[] {
+  return rotate(intervals.map(value => rootMidi + value), inversion).map(pitch);
+}
 
 export function chord(rootMidi: number, quality: ChordQuality, inversion = 0): Pitch[] {
   if (!Number.isInteger(inversion) || inversion < 0 || inversion > 2) throw new RangeError('Triad inversion must be 0, 1, or 2');
-  const notes = structures[quality].map(value => rootMidi + value);
-  for (let i = 0; i < inversion; i += 1) notes.push((notes.shift() as number) + 12);
-  return notes.map(pitch);
+  return voiceChord(rootMidi, structures[quality], inversion);
 }
 
 export function seventhChord(rootMidi: number, quality: SeventhQuality, inversion = 0): Pitch[] {
   if (!Number.isInteger(inversion) || inversion < 0 || inversion > 3) throw new RangeError('Seventh-chord inversion must be 0 through 3');
-  const notes = [...seventhStructures[quality]].map(value => rootMidi + value);
-  for (let i = 0; i < inversion; i += 1) notes.push((notes.shift() as number) + 12);
-  return notes.map(pitch);
+  return voiceChord(rootMidi, seventhStructures[quality], inversion);
 }
 
 export function melodicInterval(rootMidi: number, semitones: number, direction: 'ascending' | 'descending'): Pitch[] {
