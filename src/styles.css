@@ -201,6 +201,10 @@ html, body, #root { height: 100%; }
 .focus-play .listen span { font-size: 22px; }
 .focus-play h3 { font: 600 1.3rem 'Playfair Display', serif; margin: .9rem 0 .3rem; }
 .focus-play .hint { font-size: .78rem; margin: 0; }
+.melodic-toggle { display: flex; flex-direction: column; align-items: center; gap: .4rem; margin-top: .7rem; }
+.melodic-toggle span { font-size: .72rem; color: #7f8b83; max-width: 22rem; }
+.melodic-toggle .replay-actions { justify-content: center; }
+.melodic-toggle button.selected { background: #c6a769; color: #142018; border-color: #c6a769; }
 .focus-scroll { padding-bottom: 6rem; }
 
 @media (max-width: 750px) {
@@ -211,12 +215,15 @@ html, body, #root { height: 100%; }
      unsupported value is dropped entirely, not approximated, so without this
      the whole fixed-height layout would silently fall back to normal
      scrolling on an older Android WebView. */
-  .app.focused { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+  .app.focused { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none; }
   .app.focused > aside { flex: 0 0 auto; }
-  .app.focused > main { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 0; display: flex; }
-  .focused-drill { flex: 1 1 auto; min-height: 0; width: 100%; padding: 0 1rem; }
-  .focus-top { padding: .8rem 0; }
-  .focus-play { padding: .6rem 0; }
-  .focus-play .listen { width: 72px; height: 72px; }
-  .focus-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .app.focused > main { flex: 1 1 auto; min-height: 0; max-width: 100%; overflow: hidden; padding: 0; display: flex; }
+  .focused-drill { flex: 1 1 auto; min-height: 0; max-width: 100%; width: 100%; padding: 0 1rem; box-sizing: border-box; overflow-x: hidden; }
+  .focus-top { padding: .7rem 0; }
+  .focus-play { padding: .4rem 0; }
+  .focus-play .listen { width: 64px; height: 64px; }
+  .focus-play .listen span { font-size: 18px; }
+  .focus-play h3 { font-size: 1.1rem; margin: .6rem 0 .25rem; }
+  .focus-play .hint { font-size: .72rem; }
+  .focus-scroll { flex: 1 1 auto; min-height: 0; max-width: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
 }
