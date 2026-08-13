@@ -8,7 +8,8 @@ import {
 
 export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass' | 'tonal-center' | 'mode' | 'extension' | 'altered' | 'decomposition' | 'slash-chord' | 'delayed-comparison' | 'multibar-memory';
 export type Vocabulary = 'diatonic' | 'chromatic';
-export type Presentation = 'block' | 'arpeggiated';
+/** 'both' plays the chord whole and then arpeggiates it — the most information, so the easiest rung. */
+export type Presentation = 'both' | 'block' | 'arpeggiated';
 export type Exposure = 'sustained' | 'short';
 export type Rhythm = 'steady' | 'syncopated';
 /** Seconds of silence between the two chords in a delayed comparison. */

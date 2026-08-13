@@ -114,6 +114,21 @@ export class AudioEngine {
 
   async play(notes: Pitch[], duration=1.35, melodic=false, timbre: Timbre='piano') { const context=await this.ready(); await this.schedule(notes,context.currentTime+.035,duration,melodic,timbre); }
   /**
+   * The chord whole, then note by note. On a small speaker a block chord can
+   * collapse into one indistinct sound; hearing the same notes separated after
+   * it is what makes the quality audible. The arpeggio follows the voicing as it
+   * actually sounds, inversion included, so it spells the chord that was played
+   * rather than a tidied-up root position.
+   */
+  async blockThenArpeggio(notes: Pitch[], duration=1.15, timbre: Timbre='piano', step=.34) {
+    const context=await this.ready();
+    const start=context.currentTime+.035;
+    await this.schedule(notes,start,duration,false,timbre);
+    const ordered=[...notes].sort((a,b)=>a.midiNumber-b.midiNumber);
+    const after=start+duration+.22;
+    await Promise.all(ordered.map((note,index)=>this.schedule([note],after+index*step,Math.max(.3,step*.95),false,timbre)));
+  }
+  /**
    * Renders a task as separable layers. Adding parts one at a time is the stems
    * ladder; the noise bed is the masking ladder. Both are difficulty conditions
    * on the same underlying material rather than separate exercises.

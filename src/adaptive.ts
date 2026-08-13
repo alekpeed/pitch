@@ -175,7 +175,7 @@ const ladders: { key: LadderKey; values: readonly unknown[] }[] = [
   { key: 'rootPool', values: ['white', 'all'] },
   { key: 'inversions', values: [false, true] },
   { key: 'vocabulary', values: ['diatonic', 'chromatic'] },
-  { key: 'presentation', values: ['block', 'arpeggiated'] },
+  { key: 'presentation', values: ['both', 'block', 'arpeggiated'] },
   { key: 'register', values: ['middle', 'high', 'low', 'random'] },
   { key: 'timbre', values: ['piano', 'rhodes', 'guitar', 'strings', 'organ', 'pad'] },
   { key: 'rhythm', values: ['steady', 'syncopated'] },
@@ -191,7 +191,7 @@ export const MAX_DIFFICULTY_LEVEL = ladders.reduce((total, ladder) => total + la
 /** The bottom of every ladder, used as the origin for a levelled difficulty scale. */
 export const EASIEST_DRILL: Omit<DrillConfig, 'kind'> = {
   rootPool: 'white', inversions: false, melodic: true, register: 'middle', timbre: 'piano',
-  vocabulary: 'diatonic', presentation: 'block', exposure: 'sustained', rhythm: 'steady',
+  vocabulary: 'diatonic', presentation: 'both', exposure: 'sustained', rhythm: 'steady',
   memoryDelay: 'none', deadline: 'none',
 };
 

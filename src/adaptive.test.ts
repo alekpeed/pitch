@@ -146,7 +146,7 @@ describe('difficulty stepping', () => {
     expect(adjustDrill(hard, 'lower').timbre).toBe('strings');
   });
   it('stays put at the floor and the ceiling', () => {
-    const easiest: DrillConfig = { kind: 'triad', rootPool: 'white', inversions: false, melodic: true, register: 'middle', timbre: 'piano', vocabulary: 'diatonic', presentation: 'block', exposure: 'sustained', rhythm: 'steady', memoryDelay: 'none', deadline: 'none' };
+    const easiest: DrillConfig = { kind: 'triad', rootPool: 'white', inversions: false, melodic: true, register: 'middle', timbre: 'piano', vocabulary: 'diatonic', presentation: 'both', exposure: 'sustained', rhythm: 'steady', memoryDelay: 'none', deadline: 'none' };
     expect(adjustDrill(easiest, 'lower')).toEqual(easiest);
     const hardest: DrillConfig = { kind: 'triad', rootPool: 'all', inversions: true, melodic: false, register: 'random', timbre: 'pad', vocabulary: 'chromatic', presentation: 'arpeggiated', exposure: 'short', rhythm: 'syncopated', memoryDelay: 'long', deadline: '3' };
     expect(adjustDrill(hardest, 'raise')).toEqual(hardest);
