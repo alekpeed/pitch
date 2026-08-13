@@ -45,6 +45,7 @@ export const retentionStore = {
   all: read,
   due: (now = Date.now()) => dueProbes(read(), now),
   upsert(probe: RetentionProbe) { localStorage.setItem(KEY, JSON.stringify([...read().filter(item => item.id !== probe.id), probe])); },
+  replaceAll(probes: RetentionProbe[]) { localStorage.setItem(KEY, JSON.stringify(probes)); },
   /** Records the outcome and immediately queues the next probe for that skill. */
   complete(id: string, passed: boolean, now = Date.now()) {
     const probes = read(); const probe = probes.find(item => item.id === id);

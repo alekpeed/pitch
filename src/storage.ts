@@ -10,11 +10,14 @@ function read<T>(key: string): T[] { try { const value: unknown = JSON.parse(loc
 export const attemptStore = {
   all: (): Attempt[] => read<Attempt>(ATTEMPT_KEY),
   add(attempt: Attempt) { localStorage.setItem(ATTEMPT_KEY, JSON.stringify([...this.all(), attempt])); },
+  /** Used only by restore, which has already validated and merged what it writes. */
+  replaceAll(attempts: Attempt[]) { localStorage.setItem(ATTEMPT_KEY, JSON.stringify(attempts)); },
   clear() { localStorage.removeItem(ATTEMPT_KEY); }
 };
 export const sessionStore = {
   all: (): Session[] => read<Session>(SESSION_KEY),
   add(session: Session) { if (!this.all().some(item => item.id === session.id)) localStorage.setItem(SESSION_KEY, JSON.stringify([...this.all(), session])); },
   finish(id: string, endedAt: string) { localStorage.setItem(SESSION_KEY, JSON.stringify(this.all().map(item => item.id === id ? { ...item, endedAt } : item))); },
+  replaceAll(sessions: Session[]) { localStorage.setItem(SESSION_KEY, JSON.stringify(sessions)); },
   clear() { localStorage.removeItem(SESSION_KEY); }
 };

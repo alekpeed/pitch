@@ -26,5 +26,6 @@ export const transcriptionStore = {
   saveReference(assetId: string, reference: TranscriptionReference) { const items = read<{ assetId: string; reference: TranscriptionReference }>(REFERENCE_KEY); localStorage.setItem(REFERENCE_KEY, JSON.stringify([...items.filter(item => item.assetId !== assetId), { assetId, reference }])); },
   submissions: () => read<TranscriptionSubmission>(SUBMISSION_KEY),
   addSubmission(submission: TranscriptionSubmission) { localStorage.setItem(SUBMISSION_KEY, JSON.stringify([...this.submissions(), submission])); },
+  replaceSubmissions(submissions: TranscriptionSubmission[]) { localStorage.setItem(SUBMISSION_KEY, JSON.stringify(submissions)); },
   clear() { [LOOP_KEY, REFERENCE_KEY, SUBMISSION_KEY].forEach(key => localStorage.removeItem(key)); }
 };

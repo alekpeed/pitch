@@ -143,3 +143,17 @@
 .stage-skills { display: flex; flex-wrap: wrap; gap: .35rem; }
 .stage-skills button { font-size: .74rem; text-transform: capitalize; padding: .3rem .6rem; border-radius: 999px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(198, 167, 105, .22); }
 .stage-skills button.met { color: #a6c98f; border-color: rgba(166, 201, 143, .45); }
+
+/* Journal notes, export and restore */
+.note-form { display: flex; flex-direction: column; gap: .5rem; padding: .9rem 1rem; margin: .8rem 0; border-radius: 10px; border: 1px solid rgba(198, 167, 105, .25); background: rgba(255, 255, 255, .02); }
+.note-form input { width: 100%; }
+.note-form .replay-actions button.selected { background: rgba(198, 167, 105, .3); border-color: rgba(198, 167, 105, .7); }
+.journal { list-style: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.journal li { padding: .7rem .9rem; border-left: 2px solid rgba(198, 167, 105, .45); background: rgba(255, 255, 255, .02); font-size: .88rem; line-height: 1.55; }
+.raw-preview { margin: .6rem 0 1.4rem; }
+.raw-preview summary { cursor: pointer; font-size: .8rem; opacity: .75; }
+.raw-preview pre { max-height: 16rem; overflow: auto; font-size: .72rem; line-height: 1.45; padding: .7rem .8rem; margin: .5rem 0 0; border-radius: 8px; background: rgba(0, 0, 0, .28); white-space: pre-wrap; word-break: break-all; }
+.settings textarea { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: .76rem; }
+.restore-status { font-size: .85rem; padding: .6rem .8rem; border-radius: 8px; }
+.restore-status.ok { color: #a6c98f; background: rgba(166, 201, 143, .12); }
+.restore-status.no { color: #cf8f8f; background: rgba(207, 143, 143, .12); }

@@ -97,5 +97,6 @@ export const diagnosticStore = {
     const levels = Object.fromEntries(estimates.map(estimate => [estimate.exercise, estimate.level]));
     localStorage.setItem(KEY, JSON.stringify({ completedAt: new Date(now).toISOString(), levels }));
   },
+  restore(stored: StoredDiagnostic) { localStorage.setItem(KEY, JSON.stringify(stored)); },
   clear() { localStorage.removeItem(KEY); },
 };
