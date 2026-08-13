@@ -33,8 +33,15 @@ const DRILL_KINDS: ExerciseKind[] = [...RECOGNITION_KINDS];
 // the rest rather than sitting in a lab the engine cannot reach.
 const CATALOG = [...DRILL_KINDS.map(kind => `${kind}-recognition`), ...VOICING_EXERCISES.filter(id => id !== 'inner-voice-reproduction')];
 const PRODUCTION = [...PRODUCTION_EXERCISES, 'inner-voice-reproduction'];
-const TRANSFER = [...TRANSFER_EXERCISES];
+const TRANSFER: string[] = [...TRANSFER_EXERCISES];
 const kindOf = (exercise: string) => DRILL_KINDS.find(kind => `${kind}-recognition` === exercise);
+
+/**
+ * A drill that is still in the app. Attempts and probes recorded against a
+ * retired exercise stay in the journal as history, but must never be scheduled
+ * again — there is no screen left to send them to.
+ */
+const isLive = (exercise: string) => CATALOG.includes(exercise) || PRODUCTION.includes(exercise) || TRANSFER.includes(exercise);
 
 /** One place that decides where an exercise id is practiced. */
 function pageFor(exercise: string): Page {
@@ -107,7 +114,7 @@ export default function App() {
   }, [timerActive, deadlineMs, startedAt]);
 
   const activeSlot = plan[planIndex];
-  const retentionDue = retentionStore.due().map(probe => probe.exercise);
+  const retentionDue = retentionStore.due().filter(probe => isLive(probe.exercise)).map(probe => probe.exercise);
   const states = skillStates({ attempts, retentionDue, pinned });
   // The genre steers the order; it never removes anything, so an off-genre
   // weakness is still scheduled at its own evidence-based priority.
@@ -134,7 +141,7 @@ export default function App() {
   }
 
   function startDaily(total = 20) {
-    const due = retentionStore.due();
+    const due = retentionStore.due().filter(probe => isLive(probe.exercise));
     const growthTarget = ranked[0]?.exercise;
     const slots = assembleSession({
       total,

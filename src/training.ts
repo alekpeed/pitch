@@ -6,7 +6,7 @@ import {
   type AlteredQuality, type ChordQuality, type ExtensionQuality, type SeventhQuality,
 } from './theory';
 
-export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass' | 'absolute-note' | 'tonal-center' | 'mode' | 'extension' | 'altered' | 'decomposition' | 'slash-chord' | 'delayed-comparison' | 'multibar-memory';
+export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass' | 'tonal-center' | 'mode' | 'extension' | 'altered' | 'decomposition' | 'slash-chord' | 'delayed-comparison' | 'multibar-memory';
 export type Vocabulary = 'diatonic' | 'chromatic';
 export type Presentation = 'block' | 'arpeggiated';
 export type Exposure = 'sustained' | 'short';
@@ -27,7 +27,6 @@ export const ANSWERS: Record<ExerciseKind, readonly string[]> = {
   triad: TRIAD_QUALITIES,
   seventh: SEVENTH_QUALITIES,
   bass: ['root in bass', 'third in bass', 'fifth in bass'],
-  'absolute-note': NOTE_NAMES,
   'tonal-center': NOTE_NAMES,
   mode: MODE_NAMES,
   extension: EXTENSION_QUALITIES,
@@ -91,10 +90,6 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
   if (config.kind === 'scale-degree') {
     const steps = config.vocabulary === 'chromatic' ? CHROMATIC_STEPS : majorScale;
     return { kind: config.kind, root, answer, notes: [root + steps[answerIndex]], contextNotes: liftAboveMud(chord(root, 'major').map(note => note.midiNumber)), inversion: 0 };
-  }
-  if (config.kind === 'absolute-note') {
-    // Deliberately no tonic context: the point is naming a pitch without one.
-    return { kind: config.kind, root, answer: NOTE_NAMES[root % 12], notes: [root], inversion: 0, explanation: `${NOTE_NAMES[root % 12]}, named without any tonal context.` };
   }
   if (config.kind === 'tonal-center') {
     const template = tonalPhrases[Math.floor(random() * tonalPhrases.length)];
@@ -192,7 +187,7 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
   return { kind: config.kind, ...sounded(root, voiced.map(note => note.midiNumber)), answer, inversion };
 }
 
-export const RECOGNITION_KINDS: readonly ExerciseKind[] = ['scale-degree', 'interval', 'triad', 'seventh', 'bass', 'absolute-note', 'tonal-center', 'mode', 'extension', 'altered', 'decomposition', 'slash-chord', 'delayed-comparison', 'multibar-memory'];
+export const RECOGNITION_KINDS: readonly ExerciseKind[] = ['scale-degree', 'interval', 'triad', 'seventh', 'bass', 'tonal-center', 'mode', 'extension', 'altered', 'decomposition', 'slash-chord', 'delayed-comparison', 'multibar-memory'];
 
 export function recommendKind(attempts: { exercise: string; correct: boolean }[]): ExerciseKind {
   const kinds: ExerciseKind[] = [...RECOGNITION_KINDS];

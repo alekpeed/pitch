@@ -49,11 +49,6 @@ describe('training engine', () => {
       expect(stimulus.notes[0] - stimulus.root).toBe(chromatic.indexOf(stimulus.answer));
     }
   });
-  it('gives absolute-note prompts no tonal context at all', () => {
-    const stimulus = generateStimulus(4, config({ kind: 'absolute-note' }));
-    expect(stimulus.contextNotes).toBeUndefined();
-    expect(stimulus.answer).toBe(NOTE_NAMES[stimulus.notes[0] % 12]);
-  });
   it('builds a tonal-center phrase that resolves to the answer but never opens on it', () => {
     for (let seed = 0; seed < 20; seed += 1) {
       const stimulus = generateStimulus(seed, config({ kind: 'tonal-center' }));
@@ -73,7 +68,7 @@ describe('training engine', () => {
     }
   });
   it('explains every stimulus in its own terms, never as a chord inversion', () => {
-    (['absolute-note', 'tonal-center', 'mode'] as const).forEach(kind => {
+    (['tonal-center', 'mode'] as const).forEach(kind => {
       const stimulus = generateStimulus(6, config({ kind }));
       expect(stimulus.explanation).toBeTruthy();
       expect(stimulus.explanation).not.toContain('root position');
