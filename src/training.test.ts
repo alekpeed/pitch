@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { generateStimulus, recommendKind, type DrillConfig } from './training';
-import { respectsLowIntervalLimit } from './theory';
+import { answersFor, generateStimulus, RECOGNITION_KINDS, recommendKind, type DrillConfig } from './training';
+import { MODES, NOTE_NAMES, respectsLowIntervalLimit } from './theory';
 const config = (overrides: Partial<DrillConfig> = {}): DrillConfig => ({ kind: 'seventh', rootPool: 'all', inversions: true, melodic: false, register: 'middle', timbre: 'piano', ...overrides });
 
 describe('training engine', () => {
@@ -27,5 +27,53 @@ describe('training engine', () => {
       const stimulus = generateStimulus(seed, config({ kind: 'triad', register: 'low', inversions: false }));
       expect(stimulus.notes[0]).toBe(stimulus.root);
     }
+  });
+  it('widens scale degrees from seven to twelve with chromatic vocabulary', () => {
+    expect(answersFor(config({ kind: 'scale-degree' }))).toHaveLength(7);
+    expect(answersFor(config({ kind: 'scale-degree', vocabulary: 'chromatic' }))).toHaveLength(12);
+  });
+  it('sounds a chromatic degree the stated distance above the tonic', () => {
+    const chromatic = answersFor(config({ kind: 'scale-degree', vocabulary: 'chromatic' }));
+    for (let seed = 0; seed < 30; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'scale-degree', vocabulary: 'chromatic' }));
+      expect(stimulus.notes[0] - stimulus.root).toBe(chromatic.indexOf(stimulus.answer));
+    }
+  });
+  it('gives absolute-note prompts no tonal context at all', () => {
+    const stimulus = generateStimulus(4, config({ kind: 'absolute-note' }));
+    expect(stimulus.contextNotes).toBeUndefined();
+    expect(stimulus.answer).toBe(NOTE_NAMES[stimulus.notes[0] % 12]);
+  });
+  it('builds a tonal-center phrase that resolves to the answer but never opens on it', () => {
+    for (let seed = 0; seed < 20; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'tonal-center' }));
+      expect(stimulus.phrase!.length).toBeGreaterThan(2);
+      expect(stimulus.answer).toBe(NOTE_NAMES[stimulus.root % 12]);
+      expect(stimulus.phrase!.at(-1)![0] % 12).toBe(stimulus.root % 12);
+      expect(stimulus.phrase![0][0] % 12).not.toBe(stimulus.root % 12);
+    }
+  });
+  it('plays a mode as its own scale and names the characteristic degree', () => {
+    for (let seed = 0; seed < 20; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'mode' }));
+      const intervals = MODES[stimulus.answer as keyof typeof MODES].intervals;
+      expect(stimulus.notes.map(note => note - stimulus.root)).toEqual([...intervals, 12]);
+      expect(stimulus.melodic).toBe(true);
+      expect(stimulus.explanation).toContain(MODES[stimulus.answer as keyof typeof MODES].characteristic);
+    }
+  });
+  it('explains every stimulus in its own terms, never as a chord inversion', () => {
+    (['absolute-note', 'tonal-center', 'mode'] as const).forEach(kind => {
+      const stimulus = generateStimulus(6, config({ kind }));
+      expect(stimulus.explanation).toBeTruthy();
+      expect(stimulus.explanation).not.toContain('root position');
+    });
+  });
+  it('generates a valid stimulus for every recognition kind', () => {
+    RECOGNITION_KINDS.forEach(kind => {
+      const stimulus = generateStimulus(11, config({ kind }));
+      expect(stimulus.notes.length).toBeGreaterThan(0);
+      expect(answersFor(config({ kind }))).toContain(stimulus.answer);
+    });
   });
 });

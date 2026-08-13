@@ -12,6 +12,27 @@ export function pitch(midiNumber: number): Pitch {
 
 export function frequency(midiNumber: number) { return 440 * 2 ** ((midiNumber - 69) / 12); }
 
+/** Semitones above the tonic, indexed so position === chromatic degree. */
+export const CHROMATIC_STEPS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
+export const CHROMATIC_DEGREES = ['1', '\u266d2', '2', '\u266d3', '3', '4', '\u266f4', '5', '\u266d6', '6', '\u266d7', '7'] as const;
+export const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11] as const;
+
+export type ModeName = 'Ionian' | 'Dorian' | 'Phrygian' | 'Lydian' | 'Mixolydian' | 'Aeolian' | 'Locrian';
+/**
+ * Modes are identified by the degree that separates them from their nearest
+ * neighbour, never by mood, so the characteristic degree travels with the mode.
+ */
+export const MODES: Record<ModeName, { intervals: readonly number[]; characteristic: string }> = {
+  Ionian: { intervals: [0, 2, 4, 5, 7, 9, 11], characteristic: 'natural 4th against a major 3rd' },
+  Dorian: { intervals: [0, 2, 3, 5, 7, 9, 10], characteristic: 'natural 6th over a minor 3rd' },
+  Phrygian: { intervals: [0, 1, 3, 5, 7, 8, 10], characteristic: 'flat 2nd' },
+  Lydian: { intervals: [0, 2, 4, 6, 7, 9, 11], characteristic: 'sharp 4th' },
+  Mixolydian: { intervals: [0, 2, 4, 5, 7, 9, 10], characteristic: 'flat 7th' },
+  Aeolian: { intervals: [0, 2, 3, 5, 7, 8, 10], characteristic: 'flat 6th' },
+  Locrian: { intervals: [0, 1, 3, 5, 6, 8, 10], characteristic: 'flat 5th' },
+};
+export const MODE_NAMES = Object.keys(MODES) as ModeName[];
+
 const structures: Record<ChordQuality, readonly number[]> = { major: [0, 4, 7], minor: [0, 3, 7], diminished: [0, 3, 6], augmented: [0, 4, 8] };
 const seventhStructures: Record<SeventhQuality, readonly number[]> = {
   'major 7': [0, 4, 7, 11], 'dominant 7': [0, 4, 7, 10],
