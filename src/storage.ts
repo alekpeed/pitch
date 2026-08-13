@@ -1,6 +1,8 @@
 export type TransferCategory = 'synthetic' | 'semi-realistic' | 'real-music';
+/** Optional self-report, used only to measure calibration against outcomes. */
+export type Confidence = 'guess' | 'unsure' | 'sure';
 /** Absent transferCategory reads as 'synthetic', so existing records stay valid. */
-export interface Attempt { id: string; sessionId?: string; timestamp: string; exercise: string; stimulus: Record<string, unknown>; expected: string; response: string; correct: boolean; latencyMs: number; difficulty: Record<string, unknown>; replayCount: number; transferCategory?: TransferCategory; retentionProbeId?: string }
+export interface Attempt { id: string; sessionId?: string; timestamp: string; exercise: string; stimulus: Record<string, unknown>; expected: string; response: string; correct: boolean; latencyMs: number; difficulty: Record<string, unknown>; replayCount: number; transferCategory?: TransferCategory; retentionProbeId?: string; confidence?: Confidence }
 export interface Session { id: string; startedAt: string; endedAt?: string; mode: 'practice' | 'harmony' | 'mixed' }
 const ATTEMPT_KEY = 'perfect-ear-attempts-v1';
 const SESSION_KEY = 'perfect-ear-sessions-v1';

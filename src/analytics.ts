@@ -1,5 +1,5 @@
 import { masteryFor, type Mastery } from './adaptive';
-import type { Attempt } from './storage';
+import type { Attempt, Confidence } from './storage';
 
 export type { Mastery };
 export interface SkillSummary { exercise: string; attempts: number; accuracy: number; medianLatencyMs: number; mastery: Mastery; recentAccuracy: number; earlierAccuracy: number; comparisonEvidence: number; condition: string }
@@ -32,4 +32,20 @@ export function summarizeSession(attempts: Attempt[], sessionId: string): Sessio
 
 export function capabilityMilestones(attempts: Attempt[]) {
   return summarizeSkills(attempts).filter(skill => skill.mastery === 'Reliable' || skill.mastery === 'Automatic').map(skill => ({ skill: skill.exercise, label: skill.mastery, statement: `${skill.mastery} ${skill.exercise.replaceAll('-', ' ')}: ${Math.round(skill.accuracy * 100)}% across ${skill.attempts} attempts`, evidenceCount: skill.attempts }));
+}
+
+export interface CalibrationBand { confidence: Confidence; attempts: number; accuracy: number }
+const BANDS: Confidence[] = ['guess', 'unsure', 'sure'];
+
+/**
+ * Accuracy at each self-reported confidence level. Well-calibrated means accuracy
+ * rises with confidence; the gap between the two is the miscalibration.
+ */
+export function calibration(attempts: Attempt[]): CalibrationBand[] {
+  return BANDS
+    .map(confidence => {
+      const evidence = attempts.filter(item => item.confidence === confidence);
+      return { confidence, attempts: evidence.length, accuracy: rate(evidence) };
+    })
+    .filter(band => band.attempts > 0);
 }

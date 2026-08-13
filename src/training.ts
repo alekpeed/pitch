@@ -18,7 +18,7 @@ export type Deadline = 'none' | '8' | '5' | '3';
 export const DELAY_SECONDS: Record<MemoryDelay, number> = { none: 1.1, short: 2.4, long: 4 };
 export type Register = 'low' | 'middle' | 'high' | 'random';
 export type Timbre = 'piano' | 'rhodes' | 'organ' | 'guitar' | 'strings' | 'pad';
-export interface DrillConfig { kind: ExerciseKind; rootPool: 'all' | 'white'; inversions: boolean; melodic: boolean; register: Register; timbre: Timbre; vocabulary?: Vocabulary; presentation?: Presentation; exposure?: Exposure; rhythm?: Rhythm; memoryDelay?: MemoryDelay; deadline?: Deadline; blind?: boolean }
+export interface DrillConfig { kind: ExerciseKind; rootPool: 'all' | 'white'; inversions: boolean; melodic: boolean; register: Register; timbre: Timbre; vocabulary?: Vocabulary; presentation?: Presentation; exposure?: Exposure; rhythm?: Rhythm; memoryDelay?: MemoryDelay; deadline?: Deadline; blind?: boolean; only?: readonly string[]; confidence?: boolean }
 export interface Stimulus { kind: ExerciseKind; root: number; answer: string; notes: number[]; inversion: number; contextNotes?: number[]; direction?: 'ascending' | 'descending'; quality?: string; phrase?: number[][]; melodic?: boolean; explanation?: string; question?: string; replayLimit?: number; gapSeconds?: number }
 
 export const ANSWERS: Record<ExerciseKind, readonly string[]> = {
@@ -44,9 +44,19 @@ export const ANSWERS: Record<ExerciseKind, readonly string[]> = {
 const CHORD_MEMBERS = ['root', '3rd', '5th', '7th'] as const;
 
 /** Scale-degree vocabulary widens to all twelve degrees as difficulty rises. */
-export function answersFor(config: DrillConfig): readonly string[] {
+function fullAnswersFor(config: DrillConfig): readonly string[] {
   if (config.kind === 'scale-degree' && config.vocabulary === 'chromatic') return CHROMATIC_DEGREES;
   return ANSWERS[config.kind];
+}
+
+/**
+ * `only` narrows a drill to a specific set of labels, which is what turns an
+ * ordinary drill into an A/B contrast between two confused answers.
+ */
+export function answersFor(config: DrillConfig): readonly string[] {
+  const full = fullAnswersFor(config);
+  const narrowed = config.only?.length ? full.filter(answer => config.only!.includes(answer)) : full;
+  return narrowed.length ? narrowed : full;
 }
 
 // Each phrase ends on the tonic but never opens on it, so the answer has to be
@@ -73,9 +83,11 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
   const pool = config.rootPool === 'white' ? whitePitchClasses : Array.from({ length: 12 }, (_, index) => index);
   const register = config.register === 'random' ? (['low', 'middle', 'high'] as const)[Math.floor(random() * 3)] : config.register;
   const root = registerBases[register] + pool[Math.floor(random() * pool.length)];
-  const answers = answersFor(config);
-  const answerIndex = Math.floor(random() * answers.length);
-  const answer = answers[answerIndex];
+  const answerPool = answersFor(config);
+  const answer = answerPool[Math.floor(random() * answerPool.length)];
+  // Indexed against the unrestricted list, because several generators use the
+  // answer's position to look up a parallel table of intervals or structures.
+  const answerIndex = Math.max(0, fullAnswersFor(config).indexOf(answer));
   if (config.kind === 'scale-degree') {
     const steps = config.vocabulary === 'chromatic' ? CHROMATIC_STEPS : majorScale;
     return { kind: config.kind, root, answer, notes: [root + steps[answerIndex]], contextNotes: liftAboveMud(chord(root, 'major').map(note => note.midiNumber)), inversion: 0 };
