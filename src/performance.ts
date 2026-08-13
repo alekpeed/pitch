@@ -47,17 +47,24 @@ export function generateCall(seed: number, kind: CallKind): CallResponse {
   };
 }
 
-export function gradeCall(call: CallResponse, played: readonly number[], octaveEquivalent = true) {
+/**
+ * Compares what was played against what was wanted, either as an ordered sequence
+ * or as a set. Shared by every drill that asks for notes back rather than a label.
+ */
+export function gradeAgainst(expected: readonly number[], played: readonly number[], ordered: boolean, octaveEquivalent = true) {
   const fold = (note: number) => octaveEquivalent ? ((note % 12) + 12) % 12 : note;
-  if (call.ordered) {
-    const perItem = call.expected.map((note, index) => played[index] !== undefined && fold(note) === fold(played[index]));
-    return { perItem, matched: perItem.filter(Boolean).length, total: call.expected.length, correct: perItem.every(Boolean) && played.length === call.expected.length };
+  if (ordered) {
+    const perItem = expected.map((note, index) => played[index] !== undefined && fold(note) === fold(played[index]));
+    return { perItem, matched: perItem.filter(Boolean).length, total: expected.length, correct: perItem.every(Boolean) && played.length === expected.length };
   }
-  const wanted = new Set(call.expected.map(fold));
+  const wanted = new Set(expected.map(fold));
   const given = new Set(played.map(fold));
-  const perItem = call.expected.map(note => given.has(fold(note)));
-  return { perItem, matched: perItem.filter(Boolean).length, total: call.expected.length, correct: wanted.size === given.size && [...wanted].every(note => given.has(note)) };
+  const perItem = expected.map(note => given.has(fold(note)));
+  return { perItem, matched: perItem.filter(Boolean).length, total: expected.length, correct: wanted.size === given.size && [...wanted].every(note => given.has(note)) };
 }
+
+export const gradeCall = (call: CallResponse, played: readonly number[], octaveEquivalent = true) =>
+  gradeAgainst(call.expected, played, call.ordered, octaveEquivalent);
 
 /* ------------------------------------------------------- fretboard (70) */
 

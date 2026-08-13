@@ -11,9 +11,10 @@ import { NoteMap } from './NoteMap';
 import { DiagnosticLab } from './DiagnosticLab';
 import { buildComparison, contrastCandidates, contrastConfig } from './contrast';
 import {
-  applyProfile, currentStage, PROFILES, profileConfig, profileFor, profileProgressionIds, profileStore,
-  PRODUCTION_EXERCISES, stageProgress, TRANSFER_EXERCISES, type ProfileId,
+  applyProfile, currentStage, PROFILES, profileConfig, profileFor, profileProgressionIds, profileSpacings,
+  profileStore, PRODUCTION_EXERCISES, stageProgress, TRANSFER_EXERCISES, VOICING_EXERCISES, type ProfileId,
 } from './curriculum';
+import { TextureLab } from './TextureLab';
 import { diagnosticStore } from './diagnostic';
 import { transcriptionStore } from './transcription';
 import { TranscriptionLab } from './TranscriptionLab';
@@ -24,12 +25,26 @@ import { VoicingLab } from './VoicingLab';
 import { SingingLab } from './SingingLab';
 import './styles.css';
 
-type Page = 'Daily' | 'Diagnostic' | 'Practice' | 'Curriculum' | 'Harmony' | 'Performance' | 'Perform' | 'Harmonize' | 'Transcribe' | 'Transcription' | 'Singing' | 'Explore' | 'Progress' | 'Settings';
+type Page = 'Daily' | 'Diagnostic' | 'Practice' | 'Curriculum' | 'Harmony' | 'Voicings' | 'Performance' | 'Perform' | 'Harmonize' | 'Transcribe' | 'Transcription' | 'Singing' | 'Explore' | 'Progress' | 'Settings';
 const DRILL_KINDS: ExerciseKind[] = [...RECOGNITION_KINDS];
-const CATALOG = DRILL_KINDS.map(kind => `${kind}-recognition`);
-const PRODUCTION = [...PRODUCTION_EXERCISES];
+// The voicing drills are recognition work too, so they rank and schedule alongside
+// the rest rather than sitting in a lab the engine cannot reach.
+const CATALOG = [...DRILL_KINDS.map(kind => `${kind}-recognition`), ...VOICING_EXERCISES.filter(id => id !== 'inner-voice-reproduction')];
+const PRODUCTION = [...PRODUCTION_EXERCISES, 'inner-voice-reproduction'];
 const TRANSFER = [...TRANSFER_EXERCISES];
 const kindOf = (exercise: string) => DRILL_KINDS.find(kind => `${kind}-recognition` === exercise);
+
+/** One place that decides where an exercise id is practiced. */
+function pageFor(exercise: string): Page {
+  if ((VOICING_EXERCISES as readonly string[]).includes(exercise)) return 'Voicings';
+  if (exercise === 'transcription') return 'Transcription';
+  if (exercise.startsWith('harmony-')) return 'Harmony';
+  if (exercise.startsWith('transcribe-')) return 'Transcribe';
+  if (exercise.startsWith('call-response') || exercise === 'functional-performance') return 'Perform';
+  if (exercise.includes('harmoniz')) return 'Harmonize';
+  if (exercise.endsWith('-production')) return 'Singing';
+  return 'Performance';
+}
 const initialConfig: DrillConfig = { kind: 'triad', rootPool: 'all', inversions: true, melodic: false, register: 'random', timbre: 'piano' };
 
 export default function App() {
@@ -51,6 +66,7 @@ export default function App() {
   // during render and refs must not be read there.
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [profileId, setProfileId] = useState<ProfileId | undefined>(() => profileStore.get());
+  const [voicingDrill, setVoicingDrill] = useState<string>();
   const profile = profileFor(profileId);
   const audio = useMemo(() => new AudioEngine(), []);
   const stimulus = useMemo(() => generateStimulus(seed, config), [seed, config]);
@@ -141,8 +157,14 @@ export default function App() {
       // Retention probes must be altered examples, never exact repeats.
       setSeed(slot.probeId ? probeSeed({ id: slot.probeId, exercise: slot.exercise, dueAt: new Date().toISOString(), intervalDays: 1 }) : value => value + 1);
       setPage('Practice');
-    } else if (slot.exercise === 'transcription') setPage('Transcription');
-    else setPage('Performance');
+    } else openExercise(slot.exercise);
+  }
+
+  /** Sends a non-drill exercise to the page that hosts it, on the drill it names. */
+  function openExercise(exercise: string) {
+    if ((VOICING_EXERCISES as readonly string[]).includes(exercise)) setVoicingDrill(exercise);
+    if (exercise.startsWith('harmony-')) setHarmonyMode(exercise.slice(8) as HarmonyResponseMode);
+    setPage(pageFor(exercise));
   }
 
   function advancePlan() {
@@ -217,13 +239,14 @@ export default function App() {
     return groups;
   }, {} as Partial<Record<Bucket, string[]>>);
 
-  return <div className="app"><aside><div className="brand"><span>PE</span><div>Perfect Ear<small>Musicianship studio</small></div></div><nav>{(['Daily', 'Diagnostic', 'Practice', 'Curriculum', 'Harmony', 'Performance', 'Perform', 'Harmonize', 'Transcribe', 'Transcription', 'Singing', 'Explore', 'Progress', 'Settings'] as Page[]).map(item => <button className={page === item ? 'active' : ''} onClick={() => { setPage(item); setAnswer(undefined); }} key={item}>{item}</button>)}</nav><div className="profile"><b>Local profile</b><small>Private · on this device</small></div></aside><main><header><div><p className="eyebrow">{plan.length ? `DAILY SESSION · ${planIndex + 1} OF ${plan.length}` : page === 'Practice' || page === 'Harmony' || page === 'Performance' || page === 'Transcription' ? 'TARGETED PRACTICE' : 'YOUR STUDIO'}</p><h1>{page}</h1></div><div className="session">{attempts.length} attempts recorded</div></header>
+  return <div className="app"><aside><div className="brand"><span>PE</span><div>Perfect Ear<small>Musicianship studio</small></div></div><nav>{(['Daily', 'Diagnostic', 'Practice', 'Curriculum', 'Harmony', 'Voicings', 'Performance', 'Perform', 'Harmonize', 'Transcribe', 'Transcription', 'Singing', 'Explore', 'Progress', 'Settings'] as Page[]).map(item => <button className={page === item ? 'active' : ''} onClick={() => { setPage(item); setAnswer(undefined); }} key={item}>{item}</button>)}</nav><div className="profile"><b>Local profile</b><small>Private · on this device</small></div></aside><main><header><div><p className="eyebrow">{plan.length ? `DAILY SESSION · ${planIndex + 1} OF ${plan.length}` : page === 'Practice' || page === 'Harmony' || page === 'Performance' || page === 'Transcription' ? 'TARGETED PRACTICE' : 'YOUR STUDIO'}</p><h1>{page}</h1></div><div className="session">{attempts.length} attempts recorded</div></header>
   {plan.length > 0 && activeSlot && <div className="session-bar"><div><b>{activeSlot.exercise.replaceAll('-', ' ')}</b><span className={`purpose ${activeSlot.purpose}`}>{activeSlot.purpose}</span><small>{activeSlot.reason}</small></div><div className="session-bar-actions"><button onClick={advancePlan}>{planIndex + 1 >= plan.length ? 'Finish session' : 'Skip item'}</button><button className="ghost" onClick={() => { setPlan([]); setPlanIndex(0); setPage('Daily'); }}>End session</button></div></div>}
   {page === 'Daily' && <><section className="hero"><div><span className="tag">TODAY</span><h2>What should I work on now?</h2><p>A session built from retention that is due, current weaknesses, one growth target at raised difficulty, production work, and real-music transfer.{profile && ` Ordering leans toward ${profile.name}, without dropping anything outside it.`}</p></div><div className="evidence"><small>Engine state</small><b>{retentionDue.length} retention probe{retentionDue.length === 1 ? '' : 's'} due</b><span>{states.length} skill{states.length === 1 ? '' : 's'} with evidence{profile ? ` · ${profile.name} stage ${stageNow!.index + 1}` : ''}</span></div></section>
     {plan.length > 0 && <section className="panel"><h2>Session in progress</h2><ol className="plan">{plan.map((slot, index) => <li key={index} className={index === planIndex ? 'current' : index < planIndex ? 'done' : ''}><b>{slot.exercise.replaceAll('-', ' ')}</b><span className={`purpose ${slot.purpose}`}>{slot.purpose}</span><small>{slot.reason}</small></li>)}</ol><button className="submit-performance" onClick={() => openSlot(plan[planIndex], planIndex)}>Resume item {planIndex + 1} →</button><button onClick={() => { setPlan([]); setPlanIndex(0); }}>End session</button></section>}
     {plan.length === 0 && <section className="panel"><h2>Next up</h2><p>Ranked by evidence: weakness, recurring confusions, retention debt, and conditions you have not generalized to yet. Nothing here is locked — you can always practice anything directly.</p><ol className="plan">{ranked.slice(0, 5).map(item => <li key={item.exercise}><b>{item.exercise.replaceAll('-', ' ')}</b><span className="purpose weakness">{item.state ? item.state.mastery : 'new'}</span><small>{item.reason}{item.stage ? ` · ${profile!.name}: ${item.stage}` : ''}</small><button onClick={() => setPinned(current => current.includes(item.exercise) ? current.filter(value => value !== item.exercise) : [...current, item.exercise])} className={pinned.includes(item.exercise) ? 'pinned' : ''}>{pinned.includes(item.exercise) ? 'Pinned' : 'Pin'}</button></li>)}</ol><button className="submit-performance" onClick={() => startDaily()}>Start 20-item session</button><button onClick={() => startDaily(10)}>Short session (10)</button></section>}</>}
   {page === 'Practice' && <><section className="hero"><div><span className="tag">CORE EAR TRAINING</span><h2>{config.kind.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')} recognition</h2><p>Identify what you hear. Every prompt varies its root, register, and tone.</p></div><div className="evidence"><small>Current conditions</small><b>{config.rootPool === 'all' ? 'All 12 roots' : 'Natural roots'} · {config.register} register</b><label className="sound-picker">Keyboard sound<select aria-label="Keyboard sound" value={config.timbre} onChange={event => next({ ...config, timbre: event.target.value as DrillConfig['timbre'] })}><option value="piano">Acoustic piano</option><option value="rhodes">Rhodes</option><option value="organ">Warm organ</option><option value="guitar">Guitar</option><option value="strings">Strings</option><option value="pad">Synth pad</option></select></label></div></section><div className="mode-tabs">{DRILL_KINDS.map(kind => <button className={config.kind === kind ? 'selected' : ''} onClick={() => selectKind(kind)} key={kind}>{kind.replaceAll('-', ' ')}</button>)}</div><section className="drill"><button className="listen" aria-label="Play prompt" onClick={play} disabled={replaysSpent}><span>▶</span></button>{remainingMs !== undefined && <div className="deadline" role="timer"><i style={{ width: `${Math.max(0, Math.min(100, remainingMs / (deadlineMs ?? 1) * 100))}%` }}/><small>{(remainingMs / 1000).toFixed(1)}s to answer</small></div>}<h3>{stimulus.question ?? 'Listen, then choose'}</h3><p className="hint">{replayLimit !== undefined ? `One listen only — ${Math.max(0, replayLimit - replays)} left.` : 'Replay freely. Response time and replays are evidence, never penalties.'}</p><div className={`answers ${answersFor(config).length > 4 ? 'many' : ''}`}>{answersFor(config).map(option => <button key={option} onClick={() => config.confidence && !answer ? setPendingAnswer(option) : submit(option)} className={`${answer ? (option === stimulus.answer ? 'correct' : option === answer ? 'wrong' : '') : ''} ${pendingAnswer === option ? 'pending' : ''}`}>{option}</button>)}</div>{pendingAnswer && !answer && <div className="confidence-prompt"><p className="eyebrow">HOW SURE ARE YOU?</p><div className="replay-actions">{(['guess', 'unsure', 'sure'] as Confidence[]).map(level => <button key={level} onClick={() => submit(pendingAnswer, level)}>{level === 'guess' ? 'Guessing' : level === 'unsure' ? 'Fairly sure' : 'Certain'}</button>)}</div><small>Recorded only to compare how sure you felt against how right you were.</small></div>}{answer && <div className="feedback"><div><b>{answer === 'timed out' ? `Out of time — this was ${stimulus.answer}.` : answer === stimulus.answer ? 'Correct — well heard.' : `This was ${stimulus.answer}.`}</b>{!config.blind && <span>{stimulus.explanation ?? `${NOTE_NAMES[stimulus.root % 12]} · ${stimulus.quality ?? (stimulus.inversion ? `inversion ${stimulus.inversion}` : 'root position')}`}</span>}{!config.blind && <NoteMap notes={stimulus.phrase ? stimulus.phrase.flat() : stimulus.notes} defining={stimulus.notes} label="What sounded"/>}</div>{comparison && <div className="error-replay"><p className="eyebrow">HEAR THE DIFFERENCE</p><div className="replay-actions"><button onClick={() => playNotes(comparison.heard.notes)}>Replay {stimulus.answer}</button><button onClick={() => playNotes(comparison.alternative.notes)}>Play {answer}</button><button onClick={() => playNotes(comparison.differing, 1.4)}>Isolate the difference</button><button onClick={anotherLikeThis}>Another like this →</button></div>{!config.blind && <NoteMap notes={[...comparison.shared, ...comparison.differing].sort((a, b) => a - b)} defining={comparison.differing} label={`${stimulus.answer} vs ${answer} — differing tones highlighted`}/>}</div>}<button onClick={() => plan.length ? advancePlan() : next()}>{plan.length ? (planIndex + 1 >= plan.length ? 'Finish session →' : 'Next item →') : 'Next prompt →'}</button></div>}</section></>}
   {page === 'Harmony' && <><section className="hero"><div><span className="tag">FUNCTIONAL HARMONY</span><h2>Progressions in key</h2><p>Hear common cadences, borrowed harmony, applied dominants, and substitutions in every key.</p></div><div className="evidence"><small>Established key</small><b>{NOTE_NAMES[harmony.keyPitchClass]} major</b><span>All 12 keys · Voice-led</span></div></section><div className="mode-tabs">{([['function', 'Function'], ['roman', 'Roman numerals'], ['modulation', 'Modulation'], ['pivot', 'Pivot chord']] as [HarmonyResponseMode, string][]).map(([mode, label]) => <button key={mode} className={harmonyMode === mode ? 'selected' : ''} onClick={() => { setHarmonyMode(mode); next(); }}>{label}</button>)}</div><section className="drill"><button className="listen" aria-label="Play progression" onClick={() => { void audio.playProgression(harmony.chords.map(notes => notes.map(pitch))); setReplays(value => value + 1); }}><span>▶</span></button><h3>{harmonyMode === 'roman' ? 'Identify the exact progression' : harmonyMode === 'modulation' ? 'Which key did it land in?' : harmonyMode === 'pivot' ? 'Which chord belonged to both keys?' : 'Identify the harmonic function'}</h3><p className="hint">The displayed tonic establishes key context before you analyze the progression.</p><div className="answers harmony-answers">{harmonyAnswers(harmonyMode, harmony).map(option => { const expected = expectedHarmonyAnswer(harmony, harmonyMode); return <button key={option} onClick={() => submitHarmony(option)} className={answer ? (option === expected ? 'correct' : option === answer ? 'wrong' : '') : ''}>{option}</button>; })}</div>{answer && <div className="feedback"><div><b>{answer === expectedHarmonyAnswer(harmony, harmonyMode) ? 'Correct — function resolved.' : `This was ${expectedHarmonyAnswer(harmony, harmonyMode)}.`}</b><span>{harmony.name} in {NOTE_NAMES[harmony.keyPitchClass]} major{harmony.destinationKey !== undefined ? ` → ${NOTE_NAMES[harmony.destinationKey]}` : ''}{harmony.pedalNote !== undefined ? ` · pedal on ${NOTE_NAMES[harmony.pedalNote % 12]}` : ''}</span></div><button onClick={() => next()}>Next progression →</button></div>}</section></>}
+  {page === 'Voicings' && <TextureLab key={voicingDrill} requested={voicingDrill} sessionId={sessionId} spacings={profileSpacings(profile)} onEvidence={() => setHistoryVersion(value => value + 1)}/>}
   {page === 'Performance' && <VoicingLab sessionId={sessionId} onEvidence={() => setHistoryVersion(value => value + 1)}/>}
   {page === 'Transcription' && <TranscriptionLab sessionId={sessionId}/>}
   {page === 'Perform' && <PerformLab sessionId={sessionId} onEvidence={() => setHistoryVersion(value => value + 1)}/>}
@@ -247,7 +270,7 @@ export default function App() {
       <ol className="stages">{stages.map(status => <li key={status.stage.name} className={status.complete ? 'done' : status.index === stageNow!.index ? 'current' : ''}>
         <div className="stage-head"><b>{status.stage.name}</b><span className="purpose weakness">{status.complete ? 'met' : `${status.met.length} of ${status.stage.exercises.length}`}</span></div>
         <p>{status.stage.goal}</p>
-        <div className="stage-skills">{status.stage.exercises.map(exercise => <button key={exercise} className={status.met.includes(exercise) ? 'met' : ''} onClick={() => { const kind = kindOf(exercise); if (kind) selectKind(kind); else if (exercise.startsWith('harmony-')) { setHarmonyMode(exercise.slice(8) as HarmonyResponseMode); setPage('Harmony'); } else if (exercise.startsWith('transcribe-')) setPage('Transcribe'); else if (exercise.startsWith('call-response') || exercise === 'functional-performance') setPage('Perform'); else if (exercise.includes('harmoniz')) setPage('Harmonize'); else if (exercise.endsWith('-production')) setPage('Singing'); else setPage('Performance'); }}>{exercise.replaceAll('-', ' ')}</button>)}</div>
+        <div className="stage-skills">{status.stage.exercises.map(exercise => <button key={exercise} className={status.met.includes(exercise) ? 'met' : ''} onClick={() => { const kind = kindOf(exercise); if (kind) return selectKind(kind); openExercise(exercise); }}>{exercise.replaceAll('-', ' ')}</button>)}</div>
       </li>)}</ol></section>}</>}
   {page === 'Explore' && <section className="panel"><h2>Core curriculum</h2><p>Practice any skill directly. Nothing is locked.</p>{DRILL_KINDS.map(kind => <button className="curriculum" onClick={() => selectKind(kind)} key={kind}><b>{kind.replaceAll('-', ' ')}</b><span>Practice now →</span></button>)}<button className="recommend" onClick={() => selectKind(recommendKind(attempts))}>Practice recommended weak area</button></section>}
   {page === 'Progress' && <section className="panel"><h2>Evidence, not points</h2><p>Your current picture is calculated directly from immutable local attempts.</p><div className="stat"><strong>{attempts.length}</strong><span>Total attempts</span></div><div className="stat"><strong>{accuracy ?? '—'}{accuracy !== null && '%'}</strong><span>Accuracy</span></div><div className="session-card"><b>Current session summary</b><span>{sessionSummary.attempts} attempts · {sessionSummary.attempts ? `${Math.round(sessionSummary.accuracy * 100)}% accurate · median ${(sessionSummary.medianLatencyMs / 1000).toFixed(1)}s` : 'No evidence yet'}</span><small>{sessionSummary.focus.length ? `Focus: ${sessionSummary.focus.join(', ')}` : 'Your focus areas will appear here automatically.'}</small></div>

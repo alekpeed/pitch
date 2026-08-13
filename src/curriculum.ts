@@ -1,5 +1,6 @@
 import type { RankedExercise, SkillState } from './adaptive';
 import { PROGRESSIONS } from './harmony';
+import { SPACINGS, type Spacing } from './texture';
 import type { DrillConfig, ExerciseKind, Timbre } from './training';
 import { RECOGNITION_KINDS } from './training';
 import type { VoicingStyle } from './voicing';
@@ -13,11 +14,16 @@ export const PRODUCTION_EXERCISES = [
   'call-response-melody', 'call-response-chord', 'functional-performance',
 ] as const;
 export const TRANSFER_EXERCISES = ['transcribe-melody', 'transcribe-chords', 'transcription'] as const;
+/** Hearing inside a chord rather than naming it — spacing, colour, and moving voices. */
+export const VOICING_EXERCISES = [
+  'voicing-spacing', 'upper-structure', 'voice-motion', 'inner-voice-melody',
+  'inner-voice-reproduction', 'voicing-change',
+] as const;
 
 /** Every exercise id the app can schedule. A curriculum may only name these. */
 export const ALL_EXERCISES: readonly string[] = [
   ...RECOGNITION_KINDS.map(kind => `${kind}-recognition`),
-  ...HARMONY_EXERCISES, ...PRODUCTION_EXERCISES, ...TRANSFER_EXERCISES,
+  ...HARMONY_EXERCISES, ...PRODUCTION_EXERCISES, ...TRANSFER_EXERCISES, ...VOICING_EXERCISES,
 ];
 
 /* ------------------------------------------------------------- profiles */
@@ -55,7 +61,7 @@ export const PROFILES: readonly GenreProfile[] = [
     focus: 'ii–V–I, guide tones, rootless voicings, extensions and substitution.',
     repertoire: 'Standards and blowing changes — hearing a chart move rather than naming isolated chords.',
     timbre: 'rhodes',
-    voicings: ['shell', 'rootless', 'drop-2'],
+    voicings: ['shell', 'rootless', 'drop-2', 'drop-3', 'quartal'],
     progressions: ['two-five-one', 'circle-fifths', 'rhythm-changes', 'blues', 'tritone-sub', 'backdoor', 'half-dim-two', 'dim-passing'],
     vocabulary: {
       seventh: ['major 7', 'dominant 7', 'minor 7', 'half-diminished 7', 'diminished 7', 'minor-major 7'],
@@ -64,8 +70,8 @@ export const PROFILES: readonly GenreProfile[] = [
     stages: [
       { name: 'Sevenths and the ii–V–I', goal: 'Hear the four common seventh qualities and recognise a ii–V–I as one shape rather than three chords.', exercises: ['seventh-recognition', 'harmony-function', 'decomposition-recognition'] },
       { name: 'Guide tones', goal: 'Follow the 3rd and 7th through changes, which is the line that makes the harmony audible.', exercises: ['guide-tone-production', 'guide-tone-voice-leading', 'root-motion-production'] },
-      { name: 'Rootless voicings and extensions', goal: 'Hear a chord whose root is not being played, and name the colour tone on top.', exercises: ['exact-voicing-copy', 'extension-recognition', 'bass-recognition'] },
-      { name: 'Alterations and substitution', goal: 'Tell an altered dominant from a plain one, and hear a tritone sub as a substitute rather than a wrong chord.', exercises: ['altered-recognition', 'harmony-roman', 'reharmonization', 'transcribe-chords'] },
+      { name: 'Rootless voicings and extensions', goal: 'Hear a chord whose root is not being played, and name the colour tone on top.', exercises: ['exact-voicing-copy', 'extension-recognition', 'bass-recognition', 'voicing-spacing'] },
+      { name: 'Alterations and substitution', goal: 'Tell an altered dominant from a plain one, and hear a tritone sub as a substitute rather than a wrong chord.', exercises: ['altered-recognition', 'upper-structure', 'harmony-roman', 'reharmonization', 'transcribe-chords'] },
     ],
   },
   {
@@ -83,7 +89,7 @@ export const PROFILES: readonly GenreProfile[] = [
     },
     stages: [
       { name: 'Triads and the loop', goal: 'Hear major and minor instantly, and recognise the common four-chord loops by their motion.', exercises: ['triad-recognition', 'harmony-function', 'tonal-center-recognition'] },
-      { name: 'Inversions and slash chords', goal: 'Hear the bass separately from the chord above it, which is what a slash chord asks of you.', exercises: ['bass-recognition', 'slash-chord-recognition'] },
+      { name: 'Inversions and slash chords', goal: 'Hear the bass separately from the chord above it, which is what a slash chord asks of you.', exercises: ['bass-recognition', 'slash-chord-recognition', 'voicing-change'] },
       { name: 'Sus, add9 and borrowed colour', goal: 'Name the added tone, and hear a borrowed chord as brightness or shadow rather than a mistake.', exercises: ['extension-recognition', 'harmony-roman', 'mode-recognition'] },
       { name: 'Pedals and chromatic turns', goal: 'Hold a bass note in your ear while the harmony moves over it, and catch a chromatic mediant when it lands.', exercises: ['multibar-memory-recognition', 'transcribe-chords', 'harmonization'] },
     ],
@@ -94,7 +100,7 @@ export const PROFILES: readonly GenreProfile[] = [
     focus: 'Extended chords, upper structures, chromatic voice leading, dense voicings.',
     repertoire: 'Chords too dense to spell at speed — heard by their top note and their motion instead.',
     timbre: 'rhodes',
-    voicings: ['rootless', 'drop-2', 'spread'],
+    voicings: ['rootless', 'drop-2', 'spread', 'quartal'],
     progressions: ['two-five-one', 'half-dim-two', 'dim-passing', 'backdoor', 'chromatic-mediant', 'flat-seven', 'tonic-pedal'],
     vocabulary: {
       seventh: ['major 7', 'minor 7', 'dominant 7', 'half-diminished 7', 'minor-major 7'],
@@ -102,9 +108,9 @@ export const PROFILES: readonly GenreProfile[] = [
     },
     stages: [
       { name: 'Sevenths and ninths', goal: 'Hear the 9th as colour on top of a chord you already know, not as a new chord.', exercises: ['seventh-recognition', 'extension-recognition'] },
-      { name: 'Inside dense voicings', goal: 'Pull a named member out of a chord with five or six notes in it.', exercises: ['decomposition-recognition', 'exact-voicing-copy', 'chord-tone-production'] },
-      { name: 'Chromatic voice leading', goal: 'Follow one voice moving by half step while the rest of the chord stays put.', exercises: ['guide-tone-voice-leading', 'harmony-roman', 'guide-tone-production'] },
-      { name: 'Hearing the top of the chord', goal: 'Identify the highest sounding tone, which is what carries the sound of this harmony.', exercises: ['altered-recognition', 'transcribe-chords', 'reharmonization'] },
+      { name: 'Inside dense voicings', goal: 'Pull a named member out of a chord with five or six notes in it.', exercises: ['decomposition-recognition', 'exact-voicing-copy', 'chord-tone-production', 'voicing-spacing'] },
+      { name: 'Chromatic voice leading', goal: 'Follow one voice moving by half step while the rest of the chord stays put.', exercises: ['guide-tone-voice-leading', 'voice-motion', 'harmony-roman', 'guide-tone-production'] },
+      { name: 'Hearing the top of the chord', goal: 'Identify the highest sounding tone, which is what carries the sound of this harmony.', exercises: ['altered-recognition', 'upper-structure', 'transcribe-chords', 'reharmonization'] },
     ],
   },
   {
@@ -122,7 +128,7 @@ export const PROFILES: readonly GenreProfile[] = [
     stages: [
       { name: 'Power chords and triads', goal: 'Tell a bare fifth from a full triad, and hear which third a chord has when it has one.', exercises: ['triad-recognition', 'interval-recognition'] },
       { name: 'Riffs and modal colour', goal: 'Recognise Mixolydian and Dorian by their flat 7th and natural 6th rather than by feel.', exercises: ['mode-recognition', 'scale-degree-recognition'] },
-      { name: 'Pedal tones and progressions', goal: 'Hear a held bass under moving harmony, and follow a progression built on ♭VII and ♭VI.', exercises: ['harmony-function', 'bass-recognition', 'multibar-memory-recognition'] },
+      { name: 'Pedal tones and progressions', goal: 'Hear a held bass under moving harmony, and follow a progression built on ♭VII and ♭VI.', exercises: ['harmony-function', 'bass-recognition', 'voicing-spacing', 'multibar-memory-recognition'] },
       { name: 'Playing it back on the neck', goal: 'Reproduce a riff and a bass line on the fretboard from hearing alone.', exercises: ['call-response-melody', 'functional-performance', 'transcribe-melody'] },
     ],
   },
@@ -132,7 +138,7 @@ export const PROFILES: readonly GenreProfile[] = [
     focus: 'Functional cadences, sequences, inversions, modulation, part tracking.',
     repertoire: 'Tonal repertoire, where the question is usually what the harmony is doing rather than what it is called.',
     timbre: 'strings',
-    voicings: ['close', 'open'],
+    voicings: ['close', 'open', 'drop-3'],
     progressions: ['authentic', 'half', 'plagal', 'deceptive', 'secondary-dominant', 'circle-fifths', 'dim-passing', 'modulate-dominant', 'modulate-relative'],
     vocabulary: {
       triad: ['major', 'minor', 'diminished', 'augmented'],
@@ -143,7 +149,7 @@ export const PROFILES: readonly GenreProfile[] = [
       { name: 'Cadence types', goal: 'Tell an authentic cadence from a half or deceptive one by where it lands, not by how it feels.', exercises: ['harmony-function', 'triad-recognition'] },
       { name: 'Inversions and the bass', goal: 'Hear which chord member is in the bass, which is the whole of figured bass.', exercises: ['bass-recognition', 'seventh-recognition'] },
       { name: 'Sequences and modulation', goal: 'Notice the moment a key changes, and hear which chord belonged to both keys.', exercises: ['harmony-modulation', 'harmony-pivot', 'tonal-center-recognition'] },
-      { name: 'Following the parts', goal: 'Track an individual voice through a texture instead of hearing chords as blocks.', exercises: ['guide-tone-voice-leading', 'transcribe-melody', 'interval-production'] },
+      { name: 'Following the parts', goal: 'Track an individual voice through a texture instead of hearing chords as blocks.', exercises: ['guide-tone-voice-leading', 'inner-voice-melody', 'voice-motion', 'transcribe-melody', 'interval-production'] },
     ],
   },
 ];
@@ -226,6 +232,15 @@ export function profileConfig(config: DrillConfig, profile?: GenreProfile): Dril
     timbre: profile?.timbre ?? config.timbre,
     only: vocabulary ? [...vocabulary] : undefined,
   };
+}
+
+/**
+ * The genre's voicing styles, narrowed to the ones that are a spacing of a whole
+ * chord — shell and rootless describe which notes are present, not how they sit.
+ */
+export function profileSpacings(profile?: GenreProfile): Spacing[] | undefined {
+  const spacings = profile?.voicings.filter((style): style is Spacing => (SPACINGS as readonly string[]).includes(style));
+  return spacings?.length ? spacings : undefined;
 }
 
 /** The genre's progression templates, falling back to the full set if none match. */
