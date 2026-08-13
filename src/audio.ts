@@ -113,6 +113,38 @@ export class AudioEngine {
   }
 
   async play(notes: Pitch[], duration=1.35, melodic=false, timbre: Timbre='piano') { const context=await this.ready(); await this.schedule(notes,context.currentTime+.035,duration,melodic,timbre); }
+  /**
+   * Renders a task as separable layers. Adding parts one at a time is the stems
+   * ladder; the noise bed is the masking ladder. Both are difficulty conditions
+   * on the same underlying material rather than separate exercises.
+   */
+  async playLayers(layers: { bass?: Pitch[]; harmony?: Pitch[][]; melody?: Pitch[] }, options: { gap?: number; noise?: number; timbre?: Timbre } = {}) {
+    const context = await this.ready();
+    const start = context.currentTime + .04;
+    const gap = options.gap ?? .95;
+    const timbre = options.timbre ?? 'piano';
+    const tasks: Promise<unknown>[] = [];
+    if (layers.harmony) layers.harmony.forEach((notes, index) => tasks.push(this.schedule(notes, start + index * gap, gap - .08, false, timbre)));
+    if (layers.bass) layers.bass.forEach((note, index) => tasks.push(this.schedule([note], start + index * gap, gap - .08, false, 'guitar')));
+    if (layers.melody) layers.melody.forEach((note, index) => tasks.push(this.schedule([note], start + index * (gap / 2), gap / 2 - .05, false, timbre)));
+    if (options.noise) this.maskingBed(start, (layers.harmony?.length ?? layers.melody?.length ?? 2) * gap, options.noise);
+    await Promise.all(tasks);
+  }
+
+  /** Filtered noise sitting under the material, so density can rise without new assets. */
+  private maskingBed(start: number, duration: number, level: number) {
+    const context = this.context!;
+    const frames = Math.max(1, Math.floor(context.sampleRate * duration));
+    const buffer = context.createBuffer(1, frames, context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let index = 0; index < frames; index += 1) data[index] = Math.random() * 2 - 1;
+    const source = context.createBufferSource(); source.buffer = buffer;
+    const band = context.createBiquadFilter(); band.type = 'bandpass'; band.frequency.value = 900; band.Q.value = .7;
+    const gain = context.createGain(); gain.gain.value = Math.max(0, Math.min(.25, level));
+    source.connect(band).connect(gain).connect(this.mix!.dry);
+    source.start(start); source.stop(start + duration);
+  }
+
   /** Repeats one harmony on a rhythmic pattern, for rhythm-generalized recognition. */
   async playRhythm(notes: Pitch[], onsets: number[], hit = .42, timbre: Timbre='piano') {
     const context = await this.ready(); const start = context.currentTime + .035;

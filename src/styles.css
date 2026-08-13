@@ -96,3 +96,11 @@
 .confidence-prompt { margin-top: .8rem; padding: .8rem 1rem; border-radius: 12px; border: 1px dashed rgba(198, 167, 105, .45); }
 .confidence-prompt small { display: block; margin-top: .45rem; opacity: .6; font-size: .76rem; }
 .answers button.pending { outline: 2px solid rgba(198, 167, 105, .8); outline-offset: 2px; }
+
+/* Generated transcription lab */
+.transcribe-panel .keyboard { margin-top: .5rem; }
+.hint-list { margin-top: .7rem; padding: .7rem .9rem; border-radius: 10px; border: 1px dashed rgba(198, 167, 105, .45); }
+.hint-list p { margin: 0 0 .3rem; font-size: .85rem; opacity: .85; }
+.hint-list p:last-child { margin-bottom: 0; }
+.transcription-result.pass strong { color: #a6c98f; }
+.transcription-result.fail strong { color: #cf8f8f; }

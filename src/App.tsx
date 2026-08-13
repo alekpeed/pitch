@@ -13,14 +13,16 @@ import { buildComparison, contrastCandidates, contrastConfig } from './contrast'
 import { diagnosticStore } from './diagnostic';
 import { transcriptionStore } from './transcription';
 import { TranscriptionLab } from './TranscriptionLab';
+import { TranscribeLab } from './TranscribeLab';
 import { VoicingLab } from './VoicingLab';
 import { SingingLab } from './SingingLab';
 import './styles.css';
 
-type Page = 'Daily' | 'Diagnostic' | 'Practice' | 'Harmony' | 'Performance' | 'Transcription' | 'Singing' | 'Explore' | 'Progress' | 'Settings';
+type Page = 'Daily' | 'Diagnostic' | 'Practice' | 'Harmony' | 'Performance' | 'Transcribe' | 'Transcription' | 'Singing' | 'Explore' | 'Progress' | 'Settings';
 const DRILL_KINDS: ExerciseKind[] = [...RECOGNITION_KINDS];
 const CATALOG = DRILL_KINDS.map(kind => `${kind}-recognition`);
 const PRODUCTION = ['exact-voicing-copy', 'guide-tone-voice-leading', 'scale-degree-production', 'interval-production'];
+const TRANSFER = ['transcribe-melody', 'transcribe-chords', 'transcription'];
 const kindOf = (exercise: string) => DRILL_KINDS.find(kind => `${kind}-recognition` === exercise);
 const initialConfig: DrillConfig = { kind: 'triad', rootPool: 'all', inversions: true, melodic: false, register: 'random', timbre: 'piano' };
 
@@ -110,7 +112,7 @@ export default function App() {
       }),
       growth: growthTarget ? { exercise: growthTarget, config: adjustDrill(tunedConfig(growthTarget), 'raise'), reason: 'Targeted growth at raised difficulty' } : undefined,
       production: PRODUCTION,
-      transfer: ['transcription'],
+      transfer: TRANSFER,
     });
     setPlan(slots); setPlanIndex(0);
     if (slots.length) openSlot(slots[0], 0);
@@ -198,7 +200,7 @@ export default function App() {
     return groups;
   }, {} as Partial<Record<Bucket, string[]>>);
 
-  return <div className="app"><aside><div className="brand"><span>PE</span><div>Perfect Ear<small>Musicianship studio</small></div></div><nav>{(['Daily', 'Diagnostic', 'Practice', 'Harmony', 'Performance', 'Transcription', 'Singing', 'Explore', 'Progress', 'Settings'] as Page[]).map(item => <button className={page === item ? 'active' : ''} onClick={() => { setPage(item); setAnswer(undefined); }} key={item}>{item}</button>)}</nav><div className="profile"><b>Local profile</b><small>Private · on this device</small></div></aside><main><header><div><p className="eyebrow">{plan.length ? `DAILY SESSION · ${planIndex + 1} OF ${plan.length}` : page === 'Practice' || page === 'Harmony' || page === 'Performance' || page === 'Transcription' ? 'TARGETED PRACTICE' : 'YOUR STUDIO'}</p><h1>{page}</h1></div><div className="session">{attempts.length} attempts recorded</div></header>
+  return <div className="app"><aside><div className="brand"><span>PE</span><div>Perfect Ear<small>Musicianship studio</small></div></div><nav>{(['Daily', 'Diagnostic', 'Practice', 'Harmony', 'Performance', 'Transcribe', 'Transcription', 'Singing', 'Explore', 'Progress', 'Settings'] as Page[]).map(item => <button className={page === item ? 'active' : ''} onClick={() => { setPage(item); setAnswer(undefined); }} key={item}>{item}</button>)}</nav><div className="profile"><b>Local profile</b><small>Private · on this device</small></div></aside><main><header><div><p className="eyebrow">{plan.length ? `DAILY SESSION · ${planIndex + 1} OF ${plan.length}` : page === 'Practice' || page === 'Harmony' || page === 'Performance' || page === 'Transcription' ? 'TARGETED PRACTICE' : 'YOUR STUDIO'}</p><h1>{page}</h1></div><div className="session">{attempts.length} attempts recorded</div></header>
   {plan.length > 0 && activeSlot && <div className="session-bar"><div><b>{activeSlot.exercise.replaceAll('-', ' ')}</b><span className={`purpose ${activeSlot.purpose}`}>{activeSlot.purpose}</span><small>{activeSlot.reason}</small></div><div className="session-bar-actions"><button onClick={advancePlan}>{planIndex + 1 >= plan.length ? 'Finish session' : 'Skip item'}</button><button className="ghost" onClick={() => { setPlan([]); setPlanIndex(0); setPage('Daily'); }}>End session</button></div></div>}
   {page === 'Daily' && <><section className="hero"><div><span className="tag">TODAY</span><h2>What should I work on now?</h2><p>A session built from retention that is due, current weaknesses, one growth target at raised difficulty, production work, and real-music transfer.</p></div><div className="evidence"><small>Engine state</small><b>{retentionDue.length} retention probe{retentionDue.length === 1 ? '' : 's'} due</b><span>{states.length} skill{states.length === 1 ? '' : 's'} with evidence</span></div></section>
     {plan.length > 0 && <section className="panel"><h2>Session in progress</h2><ol className="plan">{plan.map((slot, index) => <li key={index} className={index === planIndex ? 'current' : index < planIndex ? 'done' : ''}><b>{slot.exercise.replaceAll('-', ' ')}</b><span className={`purpose ${slot.purpose}`}>{slot.purpose}</span><small>{slot.reason}</small></li>)}</ol><button className="submit-performance" onClick={() => openSlot(plan[planIndex], planIndex)}>Resume item {planIndex + 1} →</button><button onClick={() => { setPlan([]); setPlanIndex(0); }}>End session</button></section>}
@@ -207,6 +209,7 @@ export default function App() {
   {page === 'Harmony' && <><section className="hero"><div><span className="tag">FUNCTIONAL HARMONY</span><h2>Progressions in key</h2><p>Hear common cadences, borrowed harmony, applied dominants, and substitutions in every key.</p></div><div className="evidence"><small>Established key</small><b>{NOTE_NAMES[harmony.keyPitchClass]} major</b><span>All 12 keys · Voice-led</span></div></section><div className="mode-tabs">{([['function', 'Function'], ['roman', 'Roman numerals'], ['modulation', 'Modulation'], ['pivot', 'Pivot chord']] as [HarmonyResponseMode, string][]).map(([mode, label]) => <button key={mode} className={harmonyMode === mode ? 'selected' : ''} onClick={() => { setHarmonyMode(mode); next(); }}>{label}</button>)}</div><section className="drill"><button className="listen" aria-label="Play progression" onClick={() => { void audio.playProgression(harmony.chords.map(notes => notes.map(pitch))); setReplays(value => value + 1); }}><span>▶</span></button><h3>{harmonyMode === 'roman' ? 'Identify the exact progression' : harmonyMode === 'modulation' ? 'Which key did it land in?' : harmonyMode === 'pivot' ? 'Which chord belonged to both keys?' : 'Identify the harmonic function'}</h3><p className="hint">The displayed tonic establishes key context before you analyze the progression.</p><div className="answers harmony-answers">{harmonyAnswers(harmonyMode, harmony).map(option => { const expected = expectedHarmonyAnswer(harmony, harmonyMode); return <button key={option} onClick={() => submitHarmony(option)} className={answer ? (option === expected ? 'correct' : option === answer ? 'wrong' : '') : ''}>{option}</button>; })}</div>{answer && <div className="feedback"><div><b>{answer === expectedHarmonyAnswer(harmony, harmonyMode) ? 'Correct — function resolved.' : `This was ${expectedHarmonyAnswer(harmony, harmonyMode)}.`}</b><span>{harmony.name} in {NOTE_NAMES[harmony.keyPitchClass]} major{harmony.destinationKey !== undefined ? ` → ${NOTE_NAMES[harmony.destinationKey]}` : ''}{harmony.pedalNote !== undefined ? ` · pedal on ${NOTE_NAMES[harmony.pedalNote % 12]}` : ''}</span></div><button onClick={() => next()}>Next progression →</button></div>}</section></>}
   {page === 'Performance' && <VoicingLab sessionId={sessionId} onEvidence={() => setHistoryVersion(value => value + 1)}/>}
   {page === 'Transcription' && <TranscriptionLab sessionId={sessionId}/>}
+  {page === 'Transcribe' && <TranscribeLab sessionId={sessionId} onEvidence={() => setHistoryVersion(value => value + 1)}/>}
   {page === 'Diagnostic' && <DiagnosticLab sessionId={sessionId} onEvidence={() => setHistoryVersion(value => value + 1)}/>}
   {page === 'Singing' && <SingingLab sessionId={sessionId} onEvidence={() => setHistoryVersion(value => value + 1)}/>}
   {page === 'Explore' && <section className="panel"><h2>Core curriculum</h2><p>Practice any skill directly. Nothing is locked.</p>{DRILL_KINDS.map(kind => <button className="curriculum" onClick={() => selectKind(kind)} key={kind}><b>{kind.replaceAll('-', ' ')}</b><span>Practice now →</span></button>)}<button className="recommend" onClick={() => selectKind(recommendKind(attempts))}>Practice recommended weak area</button></section>}
