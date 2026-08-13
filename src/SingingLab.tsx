@@ -10,6 +10,9 @@ const MODES: { id: Mode; label: string }[] = [
   { id: 'match', label: 'Pitch match' },
   { id: 'scale-degree-production', label: 'Sing a degree' },
   { id: 'interval-production', label: 'Sing an interval' },
+  { id: 'chord-tone-production', label: 'Sing a chord tone' },
+  { id: 'guide-tone-production', label: 'Sing guide tones' },
+  { id: 'root-motion-production', label: 'Sing the root motion' },
 ];
 
 export function SingingLab({ sessionId, onEvidence }: { sessionId: string; onEvidence: () => void }) {
@@ -68,6 +71,8 @@ export function SingingLab({ sessionId, onEvidence }: { sessionId: string; onEvi
 
   const playReference = () => {
     if (!prompt) { void audio.play([pitch(60)]); return; }
+    // Progression-based prompts need the whole harmonic context, not just one chord.
+    if (prompt.contextChords) return void audio.playProgression(prompt.contextChords.map(notes => notes.map(pitch)));
     void audio.playProgression([prompt.contextNotes.map(pitch), prompt.referenceNotes.map(pitch)]);
   };
 

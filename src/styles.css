@@ -113,3 +113,11 @@
 .harmonize-slot small { font-size: .74rem; opacity: .8; }
 .harmonize-slot small.ok { color: #a6c98f; }
 .harmonize-slot small.no { color: #cf8f8f; }
+
+/* Guitar fretboard input */
+.fretboard { display: flex; flex-direction: column; gap: 3px; margin: .6rem 0; overflow-x: auto; }
+.fretboard .string { display: flex; gap: 3px; align-items: center; }
+.fretboard .open-label { flex: 0 0 1.6rem; font-size: .72rem; opacity: .65; text-align: right; padding-right: .3rem; }
+.fretboard button { flex: 0 0 2.1rem; height: 1.9rem; font-size: .7rem; border-radius: 4px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(198, 167, 105, .22); }
+.fretboard button:hover:not(:disabled) { background: rgba(198, 167, 105, .25); }
+.fretboard .string button:first-of-type { background: rgba(198, 167, 105, .1); }
