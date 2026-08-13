@@ -13,6 +13,24 @@ describe('functional harmony', () => {
     for (const template of PROGRESSIONS) expect(buildProgression(11, template)).toMatchObject({ function: buildProgression(0, template).function, roman: buildProgression(0, template).roman });
   });
   it('includes advanced chromatic functions', () => expect(PROGRESSIONS.map(item => item.function)).toEqual(expect.arrayContaining(['secondary dominant', 'modal mixture', 'tritone substitution'])));
+  it('sounds the chords its roman numerals name, in the key it names', () => {
+    const QUALITIES: Record<string, number[]> = {
+      major: [0, 4, 7], minor: [0, 3, 7], diminished: [0, 3, 6], augmented: [0, 4, 8],
+      sus2: [0, 2, 7], sus4: [0, 5, 7], power: [0, 7],
+      'major 7': [0, 4, 7, 11], 'dominant 7': [0, 4, 7, 10], 'minor 7': [0, 3, 7, 10],
+      'half-diminished 7': [0, 3, 6, 10], 'minor-major 7': [0, 3, 7, 11], 'diminished 7': [0, 3, 6, 9],
+      'augmented 7': [0, 4, 8, 10], 'augmented major 7': [0, 4, 8, 11],
+    };
+    for (const template of PROGRESSIONS.filter(item => item.pedal === undefined))
+      for (const key of [0, 3, 7, 11]) {
+        const stimulus = buildProgression(key, template);
+        template.chords.forEach((item, index) => {
+          const expected = new Set(QUALITIES[item.quality].map(step => (key + item.offset + step) % 12));
+          const actual = new Set(stimulus.chords[index].map(note => ((note % 12) + 12) % 12));
+          expect(actual).toEqual(expected);
+        });
+      }
+  });
   it('moves voices less than returning to root position every chord', () => {
     const motion = (chords: number[][]) => chords.slice(1).reduce((total, notes, index) =>
       total + notes.reduce((sum, note) => sum + Math.min(...chords[index].map(previous => Math.abs(note - previous))), 0), 0);
@@ -20,7 +38,7 @@ describe('functional harmony', () => {
       const led = buildProgression(0, template).chords;
       // Baseline: the same chords, each stacked from its own root with no leading.
       const rooted = template.chords.map(item => {
-        const root = 52 + item.offset;
+        const root = 48 + item.offset;
         return (item.quality.includes('7') ? seventhChord(root, item.quality as never) : chord(root, item.quality as never)).map(note => note.midiNumber);
       });
       expect(motion(led)).toBeLessThanOrEqual(motion(rooted));

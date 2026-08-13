@@ -104,3 +104,12 @@
 .hint-list p:last-child { margin-bottom: 0; }
 .transcription-result.pass strong { color: #a6c98f; }
 .transcription-result.fail strong { color: #cf8f8f; }
+
+/* Harmonization lab */
+.harmonize-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .6rem; margin: .8rem 0; }
+.harmonize-slot { display: flex; flex-direction: column; gap: .3rem; padding: .7rem .8rem; border-radius: 10px; border: 1px solid rgba(198, 167, 105, .25); }
+.harmonize-slot b { font-size: 1.05rem; }
+.harmonize-slot select { width: 100%; }
+.harmonize-slot small { font-size: .74rem; opacity: .8; }
+.harmonize-slot small.ok { color: #a6c98f; }
+.harmonize-slot small.no { color: #cf8f8f; }

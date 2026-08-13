@@ -1,4 +1,4 @@
-import { chord, liftAboveMud, NOTE_NAMES, seededRandom, seventhChord, type ChordQuality, type SeventhQuality } from './theory';
+import { chord, liftAboveMud, NOTE_NAMES, respectsLowIntervalLimit, seededRandom, seventhChord, type ChordQuality, type SeventhQuality } from './theory';
 
 export type HarmonyResponseMode = 'roman' | 'function' | 'modulation' | 'pivot';
 export type HarmonicFunction =
@@ -67,14 +67,18 @@ export function harmonyAnswers(mode: HarmonyResponseMode, stimulus?: HarmonyStim
   return [...new Set(PROGRESSIONS.map(item => mode === 'roman' ? item.chords.map(value => value.roman).join(' – ') : item.function))];
 }
 
-/** Base register for the opening chord, in the key of C. */
-const PROGRESSION_BASE = 52;
+/**
+ * Base register for the opening chord. It MUST be a C, because chord offsets are
+ * scale degrees above the tonic of the key the progression is built in — anchoring
+ * on any other pitch class transposes the entire progression away from its label.
+ */
+const PROGRESSION_BASE = 48;
 // Must be a C, since pedal degrees are offsets from the tonic of the key the
 // progression is built in. Anchoring on any other pitch class transposes every
 // pedal by that interval.
 const PEDAL_BASE = 36;
-const VOICING_FLOOR = 52;
-const VOICING_CEILING = 64;
+const VOICING_FLOOR = 48;
+const VOICING_CEILING = 60;
 
 /**
  * Places each chord as close to the previous one as it can, so successive
@@ -87,6 +91,10 @@ export function leadVoicing(previous: readonly number[], notes: readonly number[
   const pitchClasses = rootPosition.map(note => ((note % 12) + 12) % 12);
   let best: number[] | undefined;
   let bestCost = Number.POSITIVE_INFINITY;
+  // Fallback for the rare chord no arrangement can voice cleanly; the caller
+  // lifts it afterwards.
+  let fallback: number[] | undefined;
+  let fallbackCost = Number.POSITIVE_INFINITY;
   // Search every inversion at every playable octave and keep the arrangement
   // that moves least. Choosing an inversion is what lets voices stay put instead
   // of the whole chord sliding to follow the root.
@@ -103,10 +111,15 @@ export function leadVoicing(previous: readonly number[], notes: readonly number[
       }
       if (voicing[0] < VOICING_FLOOR || last > VOICING_CEILING + 12) continue;
       const cost = voicing.reduce((total, note) => total + Math.min(...previous.map(earlier => Math.abs(note - earlier))), 0);
+      if (cost < fallbackCost) { fallbackCost = cost; fallback = voicing; }
+      // A voicing that violates the low-interval limit will be lifted an octave
+      // afterwards, which costs far more motion than choosing a wider spacing
+      // here — so tight-but-muddy candidates are excluded from the search.
+      if (!respectsLowIntervalLimit(voicing)) continue;
       if (cost < bestCost) { bestCost = cost; best = voicing; }
     }
   }
-  return best ?? rootPosition;
+  return best ?? fallback ?? rootPosition;
 }
 
 export function buildProgression(keyPitchClass: number, template: ProgressionTemplate): HarmonyStimulus {
