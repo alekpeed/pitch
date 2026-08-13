@@ -180,3 +180,38 @@ main.has-action-bar { padding-bottom: 6rem; }
 .action-bar b { flex: 1; font-size: .88rem; font-weight: 600; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .action-bar button { flex: 0 0 auto; background: #c6a769; color: #142018; font-weight: 600; padding: 11px 20px; border-radius: 8px; border: 0; cursor: pointer; font-size: .85rem; }
 @media (min-width: 751px) { .action-bar { left: 240px; } }
+
+/*
+ * Dedicated drill screen: selecting a section replaces the app's own header,
+ * hero and permanent tab row entirely — this is the whole screen, not a
+ * "Practice" page with a drill living somewhere inside it.
+ */
+html, body, #root { height: 100%; }
+.focused-drill { position: relative; display: flex; flex-direction: column; }
+.focus-top { position: relative; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: 1.1rem 0; border-bottom: 1px solid #ffffff12; flex: 0 0 auto; }
+.focus-back { display: flex; align-items: center; gap: .5rem; background: none; border: 0; color: #f3f0e7; font: 600 1.3rem 'Playfair Display', serif; text-transform: capitalize; cursor: pointer; padding: 0; }
+.focus-caret { font-size: .7rem; color: #c6a769; }
+.focus-meta { font-size: .78rem; color: #89968c; white-space: nowrap; }
+.kind-picker { position: absolute; top: 100%; left: 0; right: 0; z-index: 25; background: #111713f7; backdrop-filter: blur(8px); padding: .5rem; display: flex; flex-direction: column; gap: .4rem; max-height: 70vh; overflow-y: auto; border-radius: 0 0 12px 12px; box-shadow: 0 20px 40px #0008; }
+.kind-picker button { text-align: left; padding: .9rem 1.1rem; border-radius: 10px; background: #ffffff08; border: 1px solid #ffffff18; color: #ddd; text-transform: capitalize; cursor: pointer; font-size: .95rem; }
+.kind-picker button.selected { background: #c6a769; color: #142018; border-color: #c6a769; font-weight: 600; }
+.focus-play { flex: 0 0 auto; text-align: center; padding: 1rem 0; }
+.focus-play .listen { width: 88px; height: 88px; margin: 0 auto; }
+.focus-play .listen span { font-size: 22px; }
+.focus-play h3 { font: 600 1.3rem 'Playfair Display', serif; margin: .9rem 0 .3rem; }
+.focus-play .hint { font-size: .78rem; margin: 0; }
+.focus-scroll { padding-bottom: 6rem; }
+
+@media (max-width: 750px) {
+  /* The app itself becomes a fixed-height column: the top nav takes its
+     natural height, and the drill gets exactly what's left — nothing scrolls
+     except the option list, and only when it genuinely doesn't fit. */
+  .app.focused { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+  .app.focused > aside { flex: 0 0 auto; }
+  .app.focused > main { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 0; display: flex; }
+  .focused-drill { flex: 1 1 auto; min-height: 0; width: 100%; padding: 0 1rem; }
+  .focus-top { padding: .8rem 0; }
+  .focus-play { padding: .6rem 0; }
+  .focus-play .listen { width: 72px; height: 72px; }
+  .focus-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+}
