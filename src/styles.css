@@ -60,3 +60,20 @@
 .generalization .yes { color: #a6c98f; } .generalization .no { color: #c6a769; }
 .trend { font-style: normal; font-size: .66rem; letter-spacing: .07em; text-transform: uppercase; opacity: .8; }
 .trend.rising { color: #cf8f8f; } .trend.falling { color: #a6c98f; } .trend.steady { opacity: .55; }
+
+/* Response deadline countdown */
+.deadline { display: flex; flex-direction: column; gap: .25rem; margin: .6rem auto 0; max-width: 16rem; }
+.deadline i { display: block; height: .3rem; border-radius: 999px; background: linear-gradient(90deg, #cf8f8f, #c6a769); transition: width .1s linear; }
+.deadline small { opacity: .68; font-size: .75rem; font-variant-numeric: tabular-nums; }
+
+/* Post-answer note map */
+.note-map { display: flex; flex-direction: column; gap: .3rem; margin-top: .7rem; }
+.note-map small { opacity: .6; font-size: .72rem; letter-spacing: .07em; text-transform: uppercase; }
+.note-map .keys { display: flex; gap: 2px; overflow-x: auto; padding-bottom: .2rem; }
+.note-map .key { position: relative; flex: 0 0 1.05rem; height: 2.6rem; border-radius: 0 0 3px 3px; display: flex; align-items: flex-end; justify-content: center; font-size: .58rem; }
+.note-map .key.white { background: rgba(255, 255, 255, .09); }
+.note-map .key.black { background: rgba(0, 0, 0, .42); height: 1.7rem; flex-basis: .8rem; }
+.note-map .key.sounded { background: rgba(198, 167, 105, .55); }
+.note-map .key.defining { background: #c6a769; box-shadow: 0 0 0 1px rgba(255, 255, 255, .35) inset; }
+.note-map .key b { color: #12180f; font-weight: 700; padding-bottom: .15rem; }
+.listen[disabled] { opacity: .4; cursor: not-allowed; }

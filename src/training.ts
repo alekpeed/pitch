@@ -1,3 +1,4 @@
+import { PROGRESSIONS, buildProgression } from './harmony';
 import {
   ALTERED_QUALITIES, ALTERED_STRUCTURES, chord, CHROMATIC_DEGREES, CHROMATIC_STEPS, EXTENSION_QUALITIES,
   EXTENSION_STRUCTURES, liftAboveMud, MAJOR_SCALE, melodicInterval, MODE_NAMES, MODES, NOTE_NAMES,
@@ -5,15 +6,20 @@ import {
   type AlteredQuality, type ChordQuality, type ExtensionQuality, type SeventhQuality,
 } from './theory';
 
-export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass' | 'absolute-note' | 'tonal-center' | 'mode' | 'extension' | 'altered' | 'decomposition' | 'slash-chord';
+export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass' | 'absolute-note' | 'tonal-center' | 'mode' | 'extension' | 'altered' | 'decomposition' | 'slash-chord' | 'delayed-comparison' | 'multibar-memory';
 export type Vocabulary = 'diatonic' | 'chromatic';
 export type Presentation = 'block' | 'arpeggiated';
 export type Exposure = 'sustained' | 'short';
 export type Rhythm = 'steady' | 'syncopated';
+/** Seconds of silence between the two chords in a delayed comparison. */
+export type MemoryDelay = 'none' | 'short' | 'long';
+/** Response deadline, in seconds; 'none' leaves the drill untimed. */
+export type Deadline = 'none' | '8' | '5' | '3';
+export const DELAY_SECONDS: Record<MemoryDelay, number> = { none: 1.1, short: 2.4, long: 4 };
 export type Register = 'low' | 'middle' | 'high' | 'random';
 export type Timbre = 'piano' | 'rhodes' | 'organ' | 'guitar' | 'strings' | 'pad';
-export interface DrillConfig { kind: ExerciseKind; rootPool: 'all' | 'white'; inversions: boolean; melodic: boolean; register: Register; timbre: Timbre; vocabulary?: Vocabulary; presentation?: Presentation; exposure?: Exposure; rhythm?: Rhythm }
-export interface Stimulus { kind: ExerciseKind; root: number; answer: string; notes: number[]; inversion: number; contextNotes?: number[]; direction?: 'ascending' | 'descending'; quality?: string; phrase?: number[][]; melodic?: boolean; explanation?: string; question?: string }
+export interface DrillConfig { kind: ExerciseKind; rootPool: 'all' | 'white'; inversions: boolean; melodic: boolean; register: Register; timbre: Timbre; vocabulary?: Vocabulary; presentation?: Presentation; exposure?: Exposure; rhythm?: Rhythm; memoryDelay?: MemoryDelay; deadline?: Deadline; blind?: boolean }
+export interface Stimulus { kind: ExerciseKind; root: number; answer: string; notes: number[]; inversion: number; contextNotes?: number[]; direction?: 'ascending' | 'descending'; quality?: string; phrase?: number[][]; melodic?: boolean; explanation?: string; question?: string; replayLimit?: number; gapSeconds?: number }
 
 export const ANSWERS: Record<ExerciseKind, readonly string[]> = {
   'scale-degree': ['1 · tonic', '2 · supertonic', '3 · mediant', '4 · subdominant', '5 · dominant', '6 · submediant', '7 · leading tone'],
@@ -28,7 +34,9 @@ export const ANSWERS: Record<ExerciseKind, readonly string[]> = {
   altered: ALTERED_QUALITIES,
   // Decomposition and slash chords both answer with a note name, so one grid serves both.
   decomposition: NOTE_NAMES,
-  'slash-chord': NOTE_NAMES
+  'slash-chord': NOTE_NAMES,
+  'delayed-comparison': ['identical', 'quality changed', 'root changed', 'inversion changed'],
+  'multibar-memory': PROGRESSIONS.map(template => template.chords.map(item => item.roman).join(' \u2013 '))
 };
 
 // Indexed into the chord's own structure, so the "3rd" is whatever third that
@@ -135,6 +143,35 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
       explanation: `${label} \u2014 upper triad and bass are named independently.`,
     };
   }
+  if (config.kind === 'delayed-comparison') {
+    const quality = triadQualities[Math.floor(random() * triadQualities.length)];
+    const inversion = Math.floor(random() * 3);
+    const first = chord(root, quality, inversion).map(note => note.midiNumber);
+    const second =
+      answer === 'identical' ? first
+      : answer === 'quality changed' ? chord(root, triadQualities[(triadQualities.indexOf(quality) + 1 + Math.floor(random() * 3)) % triadQualities.length], inversion).map(note => note.midiNumber)
+      : answer === 'root changed' ? chord(root + 1 + Math.floor(random() * 4), quality, inversion).map(note => note.midiNumber)
+      : chord(root, quality, (inversion + 1 + Math.floor(random() * 2)) % 3).map(note => note.midiNumber);
+    const phrase = [liftAboveMud(first), liftAboveMud(second)];
+    return {
+      kind: config.kind, root, answer, notes: phrase[1], phrase, inversion, quality,
+      gapSeconds: DELAY_SECONDS[config.memoryDelay ?? 'none'],
+      question: 'Hear both chords, then say what changed.',
+      explanation: `The second chord ${answer === 'identical' ? 'was the same' : answer}.`,
+    };
+  }
+  if (config.kind === 'multibar-memory') {
+    const template = PROGRESSIONS[answerIndex % PROGRESSIONS.length];
+    const stimulus = buildProgression(root % 12, template);
+    return {
+      kind: config.kind, root, answer: ANSWERS['multibar-memory'][answerIndex % PROGRESSIONS.length],
+      notes: stimulus.chords.at(-1)!, phrase: stimulus.chords.map(liftAboveMud), inversion: 0,
+      // Heard once: reconstruction from memory, not from repeated listening.
+      replayLimit: 1,
+      question: 'One listen only. Which progression was that?',
+      explanation: `${stimulus.name} in ${NOTE_NAMES[stimulus.keyPitchClass]} — ${stimulus.roman}.`,
+    };
+  }
   const pitches = config.kind === 'triad' ? chord(root, answer as ChordQuality, 0) : seventhChord(root, answer as SeventhQuality, 0);
   // Inversion is capped by the notes a quality actually has, so a power chord
   // cannot be asked for a third inversion it does not possess.
@@ -143,7 +180,7 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
   return { kind: config.kind, ...sounded(root, voiced.map(note => note.midiNumber)), answer, inversion };
 }
 
-export const RECOGNITION_KINDS: readonly ExerciseKind[] = ['scale-degree', 'interval', 'triad', 'seventh', 'bass', 'absolute-note', 'tonal-center', 'mode', 'extension', 'altered', 'decomposition', 'slash-chord'];
+export const RECOGNITION_KINDS: readonly ExerciseKind[] = ['scale-degree', 'interval', 'triad', 'seventh', 'bass', 'absolute-note', 'tonal-center', 'mode', 'extension', 'altered', 'decomposition', 'slash-chord', 'delayed-comparison', 'multibar-memory'];
 
 export function recommendKind(attempts: { exercise: string; correct: boolean }[]): ExerciseKind {
   const kinds: ExerciseKind[] = [...RECOGNITION_KINDS];

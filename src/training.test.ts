@@ -122,4 +122,26 @@ describe('training engine', () => {
       for (let seed = 0; seed < 25; seed += 1)
         expect(respectsLowIntervalLimit(generateStimulus(seed, config({ kind })).notes)).toBe(true);
   });
+  it('builds a delayed comparison whose second chord matches the stated change', () => {
+    for (let seed = 0; seed < 60; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'delayed-comparison' }));
+      const [first, second] = stimulus.phrase!;
+      const same = first.length === second.length && first.every((note, index) => note === second[index]);
+      expect(same).toBe(stimulus.answer === 'identical');
+      if (stimulus.answer === 'root changed') expect(new Set(second.map(n => n % 12))).not.toEqual(new Set(first.map(n => n % 12)));
+    }
+  });
+  it('widens the gap between the two chords as memory delay rises', () => {
+    const near = generateStimulus(5, config({ kind: 'delayed-comparison', memoryDelay: 'none' }));
+    const far = generateStimulus(5, config({ kind: 'delayed-comparison', memoryDelay: 'long' }));
+    expect(far.gapSeconds!).toBeGreaterThan(near.gapSeconds!);
+  });
+  it('caps multi-bar memory at a single listen', () => {
+    for (let seed = 0; seed < 20; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'multibar-memory' }));
+      expect(stimulus.replayLimit).toBe(1);
+      expect(stimulus.phrase!.length).toBeGreaterThanOrEqual(3);
+      expect(answersFor(config({ kind: 'multibar-memory' }))).toContain(stimulus.answer);
+    }
+  });
 });

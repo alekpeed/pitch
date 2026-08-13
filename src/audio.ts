@@ -118,5 +118,6 @@ export class AudioEngine {
     const context = await this.ready(); const start = context.currentTime + .035;
     await Promise.all(onsets.map(offset => this.schedule(notes, start + offset, hit, false, timbre)));
   }
-  async playProgression(chords: Pitch[][], timbre: Timbre='piano') { const context=await this.ready(); const start=context.currentTime+.035; await Promise.all(chords.map((notes,index)=>this.schedule(notes,start+index*1.12,1.02,false,timbre))); }
+  /** `gap` is the onset-to-onset spacing, which doubles as the memory delay. */
+  async playProgression(chords: Pitch[][], timbre: Timbre='piano', gap=1.12) { const context=await this.ready(); const start=context.currentTime+.035; await Promise.all(chords.map((notes,index)=>this.schedule(notes,start+index*gap,Math.min(1.02,gap-.1),false,timbre))); }
 }

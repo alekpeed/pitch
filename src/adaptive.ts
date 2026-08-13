@@ -169,7 +169,7 @@ export function challengeSignal(accuracy: number, evidenceCount: number, band = 
   return 'hold';
 }
 
-type LadderKey = 'rootPool' | 'register' | 'inversions' | 'timbre' | 'melodic' | 'vocabulary' | 'presentation' | 'exposure' | 'rhythm';
+type LadderKey = 'rootPool' | 'register' | 'inversions' | 'timbre' | 'melodic' | 'vocabulary' | 'presentation' | 'exposure' | 'rhythm' | 'memoryDelay' | 'deadline';
 /** Each ladder runs easiest -> hardest. Order of keys is the tie-break when raising. */
 const ladders: { key: LadderKey; values: readonly unknown[] }[] = [
   { key: 'rootPool', values: ['white', 'all'] },
@@ -180,6 +180,9 @@ const ladders: { key: LadderKey; values: readonly unknown[] }[] = [
   { key: 'timbre', values: ['piano', 'rhodes', 'guitar', 'strings', 'organ', 'pad'] },
   { key: 'rhythm', values: ['steady', 'syncopated'] },
   { key: 'exposure', values: ['sustained', 'short'] },
+  { key: 'memoryDelay', values: ['none', 'short', 'long'] },
+  // Shortening the deadline is the automaticity dimension: same accuracy, less time.
+  { key: 'deadline', values: ['none', '8', '5', '3'] },
   { key: 'melodic', values: [true, false] },
 ];
 
