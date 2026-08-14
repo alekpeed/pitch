@@ -189,13 +189,31 @@ describe('session assembly', () => {
     expect(assembleSession(full).find(slot => slot.purpose === 'retention')?.probeId).toBeTruthy();
   });
   it('returns nothing when there is no material at all', () => expect(assembleSession({ total: 20, ranked: [] })).toEqual([]));
-  it('spreads purposes instead of front-loading them', () => {
+  it('groups exercises by phase to reduce screen transitions', () => {
     const slots = assembleSession(full);
-    const nonWeakness = slots.map((slot, index) => ({ slot, index })).filter(item => item.slot.purpose !== 'weakness');
-    // Every non-weakness item landing in the first third would mean no spread.
-    expect(Math.max(...nonWeakness.map(item => item.index))).toBeGreaterThan(slots.length / 2);
-    const runs = slots.filter((slot, index) => index >= 2 && slot.purpose === slots[index - 1].purpose && slot.purpose === slots[index - 2].purpose);
-    expect(runs.filter(slot => slot.purpose !== 'weakness')).toHaveLength(0);
+    // Identify exercise phases based on exercise id.
+    const isVoicing = (ex: string) => ['voicing-spacing', 'upper-structure', 'voice-motion', 'inner-voice-melody', 'inner-voice-reproduction', 'voicing-change'].includes(ex);
+    const isProduction = (ex: string) => ['exact-voicing-copy', 'guide-tone-voice-leading', 'scale-degree-production', 'interval-production', 'harmonization', 'reharmonization', 'chord-tone-production', 'guide-tone-production', 'root-motion-production', 'call-response-melody', 'call-response-chord', 'functional-performance'].includes(ex);
+    const isTransfer = (ex: string) => ['transcribe-melody', 'transcribe-chords', 'transcription'].includes(ex);
+    const phaseOf = (ex: string) => isVoicing(ex) ? 'voicing' : isProduction(ex) ? 'production' : isTransfer(ex) ? 'transfer' : 'recognition';
+    const phases = slots.map(slot => phaseOf(slot.exercise));
+    // Phases should not interleave: once we leave recognition, we shouldn't return to it.
+    const firstPhase = new Map<string, number>();
+    const lastPhase = new Map<string, number>();
+    phases.forEach((phase, index) => {
+      if (!firstPhase.has(phase)) firstPhase.set(phase, index);
+      lastPhase.set(phase, index);
+    });
+    // Each phase should be contiguous: last occurrence of phase N should come before
+    // the first occurrence of phase N+1 (if both exist in the session).
+    const phaseOrder = ['recognition', 'voicing', 'production', 'transfer'];
+    for (let i = 0; i < phaseOrder.length - 1; i++) {
+      const currentPhaseExists = firstPhase.has(phaseOrder[i]);
+      const nextPhaseExists = firstPhase.has(phaseOrder[i + 1]);
+      if (currentPhaseExists && nextPhaseExists) {
+        expect(lastPhase.get(phaseOrder[i])!).toBeLessThan(firstPhase.get(phaseOrder[i + 1])!);
+      }
+    }
   });
   it('uses the documented default mix', () => expect(DEFAULT_MIX).toEqual({ retention: .2, weakness: .35, growth: .2, production: .15, transfer: .1 }));
 });
