@@ -4,16 +4,17 @@ import {
   type ReportPeriod,
 } from './backup';
 import { currentData, applyBackup } from './persistence';
+import { Tabs } from './ui';
 
 type Format = 'json' | 'csv' | 'report';
 const FORMATS: { id: Format; label: string; extension: string; mime: string; blurb: string }[] = [
-  { id: 'json', label: 'JSON backup', extension: 'json', mime: 'application/json', blurb: 'Everything, in the format restore reads. This is the one to keep.' },
-  { id: 'csv', label: 'CSV of attempts', extension: 'csv', mime: 'text/csv', blurb: 'One row per graded attempt, for a spreadsheet.' },
-  { id: 'report', label: 'Readable report', extension: 'md', mime: 'text/markdown', blurb: 'Skill profile, weaknesses, transfer, session chronology and your notes.' },
+  { id: 'json', label: 'JSON', extension: 'json', mime: 'application/json', blurb: 'Everything, in the format restore reads. This is the one to keep.' },
+  { id: 'csv', label: 'CSV', extension: 'csv', mime: 'text/csv', blurb: 'One row per graded attempt, for a spreadsheet.' },
+  { id: 'report', label: 'Report', extension: 'md', mime: 'text/markdown', blurb: 'Skill profile, weaknesses, transfer, session chronology and your notes.' },
 ];
 const PERIODS: ReportPeriod[] = ['week', 'month', 'quarter', 'year', 'all'];
 
-export function DataPanel({ onRestored }: { onRestored: () => void }) {
+export function DataPanel({ section, onRestored }: { section: 'export' | 'restore'; onRestored: () => void }) {
   const [format, setFormat] = useState<Format>('json');
   const [period, setPeriod] = useState<ReportPeriod>('all');
   const [copied, setCopied] = useState(false);
@@ -33,7 +34,7 @@ export function DataPanel({ onRestored }: { onRestored: () => void }) {
 
   /**
    * A blob download is the normal path, but an Android WebView can refuse it — so
-   * copy and the raw preview below are always offered too, and the data can never
+   * copy and the raw text below are always offered too, and the data can never
    * be trapped inside the app.
    */
   function download() {
@@ -69,32 +70,41 @@ export function DataPanel({ onRestored }: { onRestored: () => void }) {
     void file.text().then(contents => restore(contents, mode));
   };
 
-  return <>
-    <h2>Export your history</h2>
-    <p>Everything is recorded on this device and nothing is sent anywhere. These are the ways to get it out.</p>
-
-    <div className="mode-tabs">{FORMATS.map(item => <button key={item.id} className={format === item.id ? 'selected' : ''} onClick={() => setFormat(item.id)}>{item.label}</button>)}</div>
-    <p className="hint">{chosen.blurb}</p>
-
-    {format === 'report' && <label>Period<select value={period} onChange={event => setPeriod(event.target.value as ReportPeriod)}>{PERIODS.map(item => <option key={item} value={item}>{PERIOD_LABELS[item]}</option>)}</select></label>}
-
-    <div className="replay-actions">
-      <button className="submit-performance" onClick={download}>Download {backupFilename(chosen.extension)}</button>
-      <button onClick={() => void copy()}>{copied ? 'Copied' : 'Copy to clipboard'}</button>
+  if (section === 'export') return <>
+    <Tabs value={format} onChange={setFormat} options={FORMATS.map(item => [item.id, item.label] as const)}/>
+    <p className="hint">{chosen.blurb} · {data.attempts.length} attempt{data.attempts.length === 1 ? '' : 's'} · {text.length.toLocaleString()} characters.</p>
+    {format === 'report' && <div className="fields" style={{ flex: '0 0 auto' }}>
+      <label>Period<select value={period} onChange={event => setPeriod(event.target.value as ReportPeriod)}>{PERIODS.map(item => <option key={item} value={item}>{PERIOD_LABELS[item]}</option>)}</select></label>
+    </div>}
+    <div className="actions">
+      <button className="primary" onClick={download}>Download {chosen.extension.toUpperCase()}</button>
+      <button className="ghost" onClick={() => void copy()}>{copied ? 'Copied' : 'Copy to clipboard'}</button>
     </div>
-    <p className="hint">{data.attempts.length} attempt{data.attempts.length === 1 ? '' : 's'} · {data.sessions.length} session{data.sessions.length === 1 ? '' : 's'} · {data.notes.length} note{data.notes.length === 1 ? '' : 's'} · {text.length.toLocaleString()} characters.</p>
-    <details className="raw-preview"><summary>Show the raw {chosen.extension.toUpperCase()}</summary><pre>{text}</pre></details>
+    {/* The raw text is a form field, not page content: a WebView that blocks the
+        download and a clipboard that is unavailable would otherwise leave no way
+        to get the data off the device at all. */}
+    <label className="harmony-entry" style={{ flex: '1 1 auto', minHeight: 0 }}>
+      Raw {chosen.extension.toUpperCase()} — select and copy
+      <textarea readOnly value={text} onFocus={event => event.currentTarget.select()}/>
+    </label>
+    {status && <p className={`restore-status ${status.tone}`}>{status.message}</p>}
+  </>;
 
-    <h2>Restore from a backup</h2>
-    <p>Merging keeps what is already here and adds anything missing; an attempt present in both is kept once. Replacing discards this device's history entirely, so it asks twice.</p>
-    <input ref={fileRef} type="file" accept=".json,application/json" aria-label="Backup file"/>
-    <div className="replay-actions">
-      <button className="submit-performance" onClick={() => readFile('merge')}>Merge from file</button>
+  return <>
+    <p className="lede">Merging keeps what is already here and adds anything missing; an attempt present in both is kept once. Replacing discards this device's history entirely, so it asks twice.</p>
+    <div className="fields" style={{ flex: '0 0 auto' }}>
+      <label>Backup file<input ref={fileRef} type="file" accept=".json,application/json" aria-label="Backup file"/></label>
+    </div>
+    <div className="actions">
+      <button className="primary" onClick={() => readFile('merge')}>Merge from file</button>
       <button className="danger" onClick={() => readFile('replace')}>Replace from file</button>
     </div>
-    <label>Or paste a backup<textarea value={pasted} rows={4} placeholder='{"app":"perfect-ear", …}' onChange={event => { setPasted(event.target.value); setStatus(undefined); }}/></label>
-    <div className="replay-actions">
-      <button disabled={!pasted.trim()} onClick={() => restore(pasted, 'merge')}>Merge pasted</button>
+    <label className="harmony-entry" style={{ flex: '1 1 auto', minHeight: 0 }}>
+      Or paste a backup
+      <textarea value={pasted} placeholder='{"app":"perfect-ear", …}' onChange={event => { setPasted(event.target.value); setStatus(undefined); }}/>
+    </label>
+    <div className="actions">
+      <button className="ghost" disabled={!pasted.trim()} onClick={() => restore(pasted, 'merge')}>Merge pasted</button>
       <button className="danger" disabled={!pasted.trim()} onClick={() => restore(pasted, 'replace')}>Replace with pasted</button>
     </div>
     {status && <p className={`restore-status ${status.tone}`}>{status.message}</p>}

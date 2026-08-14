@@ -4,6 +4,7 @@ import { estimatePitch, type PitchEstimate } from './pitchDetection';
 import { centsFromTarget, generateProduction, gradeProduction, noteLabel, type ProductionKind } from './production';
 import { attemptStore } from './storage';
 import { NOTE_NAMES, pitch } from './theory';
+import { Screen, ScreenBody, ScreenHead } from './ui';
 
 type Mode = 'match' | ProductionKind;
 const MODES: { id: Mode; label: string }[] = [
@@ -21,6 +22,7 @@ export function SingingLab({ sessionId, onEvidence }: { sessionId: string; onEvi
   const [tolerance, setTolerance] = useState(35);
   const [estimate, setEstimate] = useState<PitchEstimate>();
   const [status, setStatus] = useState<'idle' | 'listening' | 'denied'>('idle');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [result, setResult] = useState<{ correct: boolean | undefined; cents: number | undefined }>();
   const cleanup = useRef<() => void>(() => undefined);
   const started = useRef(Date.now());
@@ -76,18 +78,54 @@ export function SingingLab({ sessionId, onEvidence }: { sessionId: string; onEvi
     void audio.playProgression([prompt.contextNotes.map(pitch), prompt.referenceNotes.map(pitch)]);
   };
 
-  return <><section className="hero"><div><span className="tag">SINGING &amp; INTONATION</span><h2>{mode === 'match' ? 'Match the pitch' : 'Produce the pitch'}</h2><p>{mode === 'match' ? 'Hear the reference, sing it back, and receive confidence-aware feedback from your microphone.' : 'Generating a pitch from an internal reference is stronger evidence than picking one from a list.'}</p></div><div className="evidence"><small>Target</small><b>{mode === 'match' ? `${NOTE_NAMES[targetMidi % 12]}4 · MIDI ${targetMidi}` : prompt?.answer}</b><span>Detector failures are never graded as errors</span></div></section>
-    <div className="mode-tabs">{MODES.map(item => <button key={item.id} className={mode === item.id ? 'selected' : ''} onClick={() => restart({ mode: item.id })}>{item.label}</button>)}</div>
-    <section className="panel singing-panel">
-      <button className="listen compact" onClick={playReference} aria-label="Play reference pitch"><span>▶</span></button>
-      <h3>{prompt ? prompt.instruction : 'Sing C4'}</h3>
-      {prompt && <p className="hint">Reference: {noteLabel(prompt.referenceNotes[0])}. Any octave is accepted.</p>}
-      <div className={`pitch-meter ${grade === true ? 'in-tune' : grade === false ? 'out-of-tune' : ''}`}><strong>{estimate ? NOTE_NAMES[estimate.midi % 12] : '—'}</strong><span>{estimate && live !== undefined ? `${live > 0 ? '+' : ''}${live} cents` : 'Waiting for a stable pitch'}</span><div><i style={{ left: `${Math.max(0, Math.min(100, 50 + (live ?? 0) / 2))}%` }}/></div></div>
-      <button className="submit-performance" onClick={() => status === 'listening' ? cleanup.current() : void listen()}>{status === 'listening' ? 'Stop listening' : 'Start microphone'}</button>
-      {prompt && <><button className="submit-performance" disabled={status !== 'listening'} onClick={commit}>Commit this pitch</button><button onClick={() => restart()}>New prompt →</button></>}
-      {status === 'denied' && <p className="detector-note">Microphone access is unavailable. No attempt was recorded.</p>}
-      <label className="tolerance">Pitch tolerance <input type="range" min="10" max="75" value={tolerance} onChange={event => setTolerance(Number(event.target.value))}/><b>±{tolerance} cents</b></label>
-      {result && <p className="detector-note">{result.correct === undefined ? 'The detector was not confident enough to grade that — nothing was recorded.' : result.correct ? `In tune — ${result.cents! > 0 ? '+' : ''}${result.cents} cents from ${prompt?.answer}.` : `That was ${result.cents! > 0 ? '+' : ''}${result.cents} cents from ${prompt?.answer}.`}</p>}
-      {!prompt && estimate && <p className="detector-note">{grade === undefined ? 'Hold a steadier tone so the detector can grade confidently.' : grade ? 'In tune — hold that center.' : (live ?? 0) < 0 ? 'A little low — gently raise the pitch.' : 'A little high — gently lower the pitch.'} Confidence {Math.round(estimate.confidence * 100)}%</p>}
-    </section></>;
+  const note = result
+    ? result.correct === undefined ? 'The detector was not confident enough to grade that — nothing was recorded.'
+      : result.correct ? `In tune — ${result.cents! > 0 ? '+' : ''}${result.cents} cents from ${prompt?.answer}.`
+      : `That was ${result.cents! > 0 ? '+' : ''}${result.cents} cents from ${prompt?.answer}.`
+    : !prompt && estimate
+      ? `${grade === undefined ? 'Hold a steadier tone so the detector can grade confidently.' : grade ? 'In tune — hold that center.' : (live ?? 0) < 0 ? 'A little low — gently raise the pitch.' : 'A little high — gently lower the pitch.'} Confidence ${Math.round(estimate.confidence * 100)}%`
+      : status === 'denied' ? 'Microphone access is unavailable. No attempt was recorded.'
+      : 'Detector failures are never graded as errors.';
+
+  return <Screen>
+    <ScreenHead title="Singing" meta={mode === 'match' ? `${NOTE_NAMES[targetMidi % 12]}4` : prompt?.answer}/>
+    <ScreenBody>
+      {/* Six modes is more than a segmented control can hold legibly, so they use
+          the same drop-down the practice screen uses for its drill list. */}
+      <div className="drill-top">
+        <button className="picker-trigger" aria-label="Choose a different singing drill" onClick={() => setPickerOpen(open => !open)}>
+          <span>{MODES.find(item => item.id === mode)!.label}</span><span className="picker-caret">{pickerOpen ? '▲' : '▾'}</span>
+        </button>
+        {pickerOpen && <div className="kind-picker">{MODES.map(item => <button key={item.id} className={mode === item.id ? 'selected' : ''} onClick={() => { restart({ mode: item.id }); setPickerOpen(false); }}>{item.label}</button>)}</div>}
+      </div>
+
+      <div className="prompt">
+        <button className="listen" onClick={playReference} aria-label="Play reference pitch">▶</button>
+        <h2>{prompt ? prompt.instruction : 'Sing C4'}</h2>
+        <p className="hint">{prompt ? `Reference: ${noteLabel(prompt.referenceNotes[0])}. Any octave is accepted.` : 'Hear the reference, sing it back.'}</p>
+      </div>
+
+      <div className={`pitch-meter ${grade === true ? 'in-tune' : ''}`}>
+        <strong>{estimate ? NOTE_NAMES[estimate.midi % 12] : '—'}</strong>
+        <span>{estimate && live !== undefined ? `${live > 0 ? '+' : ''}${live} cents` : 'Waiting for a stable pitch'}</span>
+        <div className="bar"><i style={{ left: `${Math.max(0, Math.min(100, 50 + (live ?? 0) / 2))}%` }}/></div>
+      </div>
+
+      <p className="detector-note">{note}</p>
+
+      <label className="check" style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.72rem', color: 'var(--muted)' }}>
+        Tolerance
+        <input type="range" min="10" max="75" value={tolerance} onChange={event => setTolerance(Number(event.target.value))} style={{ flex: '1 1 auto', width: 'auto' }}/>
+        <b style={{ color: 'var(--text)' }}>±{tolerance}c</b>
+      </label>
+
+      <div className="actions">
+        <button className="ghost" onClick={() => status === 'listening' ? cleanup.current() : void listen()}>{status === 'listening' ? 'Stop listening' : 'Start microphone'}</button>
+        {prompt && <>
+          <button className="primary" disabled={status !== 'listening'} onClick={commit}>Commit this pitch</button>
+          <button className="ghost" onClick={() => restart()}>New prompt →</button>
+        </>}
+      </div>
+    </ScreenBody>
+  </Screen>;
 }

@@ -8,18 +8,17 @@ import {
   generateVoicingChange, SPACINGS, UPPER_STRUCTURES, VOICES, VOICING_CHANGES, type Spacing,
 } from './texture';
 import { NOTE_NAMES, pitch } from './theory';
+import { Screen, ScreenBody, ScreenHead, Tabs } from './ui';
+import { titleCasable } from './display';
 
 type Mode = 'spacing' | 'upper' | 'motion' | 'inner' | 'changed';
-const MODES: { id: Mode; label: string }[] = [
-  { id: 'spacing', label: 'Spacing' },
-  { id: 'upper', label: 'Upper structures' },
-  { id: 'motion', label: 'Which voice moved' },
-  { id: 'inner', label: 'Inner-voice melody' },
-  { id: 'changed', label: 'What changed' },
+// Short labels: the segmented control has to hold five of them on a phone.
+const MODES: readonly (readonly [Mode, string])[] = [
+  ['spacing', 'Spacing'], ['upper', 'Upper'], ['motion', 'Motion'], ['inner', 'Inner'], ['changed', 'Changed'],
 ];
 const HEADINGS: Record<Mode, { title: string; blurb: string }> = {
   spacing: { title: 'How is this chord spaced?', blurb: 'The chord itself is held constant across every option, so the only thing left to hear is how its notes are arranged.' },
-  upper: { title: 'Which triad is on top?', blurb: 'A stack of alterations is far easier to hear as one familiar major triad than as four separate tensions. That is the whole reason players think this way.' },
+  upper: { title: 'Which triad is on top?', blurb: 'A stack of alterations is far easier to hear as one familiar major triad than as four separate tensions.' },
   motion: { title: 'Which voice moved?', blurb: 'Two voicings, one voice apart. Everything else is a common tone.' },
   inner: { title: 'Where is the line?', blurb: 'One voice carries a melody while the other three hold their pitches exactly. Find it, then play it back.' },
   changed: { title: 'What changed between them?', blurb: 'Two near-identical voicings. An inversion keeps the same notes; a bass change brings in one the chord did not have.' },
@@ -124,36 +123,55 @@ export function TextureLab({ sessionId, spacings, requested, onEvidence }: { ses
 
   const keys = Array.from({ length: 25 }, (_, index) => 48 + index);
 
-  return <><section className="hero"><div><span className="tag">VOICINGS</span><h2>{HEADINGS[mode].title}</h2><p>{HEADINGS[mode].blurb}</p></div><div className="evidence"><small>{mode === 'upper' ? 'Chord' : mode === 'spacing' ? 'Chord' : 'Voices'}</small><b>{mode === 'upper' ? upper.label : mode === 'spacing' ? spacing.label : mode === 'changed' ? changed.label : `${VOICES.length} voices`}</b><span>{mode === 'spacing' ? `${spacingPool.length} spacings offered` : mode === 'upper' ? 'Dominant shell underneath' : 'Same chord, one thing different'}</span></div></section>
-
-    <div className="mode-tabs">{MODES.map(item => <button key={item.id} className={mode === item.id ? 'selected' : ''} onClick={() => restart(item.id)}>{item.label}</button>)}</div>
-
-    <section className="drill">
-      <button className="listen" aria-label="Play the example" onClick={play}><span>▶</span></button>
-      <h3>{HEADINGS[mode].title}</h3>
-      <p className="hint">{mode === 'motion' || mode === 'changed' ? 'Two versions play in turn.' : mode === 'inner' ? 'Four chords play in turn.' : 'Replay as often as you like.'}</p>
-
-      {mode === 'upper' && <div className="replay-actions">
-        <button onClick={() => void audio.play(upper.lower.map(pitch), 1.5)}>Hear the dominant alone</button>
-        <button onClick={() => void audio.play(upper.upper.map(pitch), 1.5)}>Hear the triad alone</button>
-      </div>}
-
-      <div className={`answers ${options.length > 4 ? 'many' : ''}`}>{options.map(option => <button key={option} disabled={Boolean(answer)} className={answer ? (option === expected ? 'correct' : option === answer ? 'wrong' : '') : ''} onClick={() => record(option)}>{option}</button>)}</div>
-
-      {answer && <div className="feedback">
-        <div>
-          <b>{answer === expected ? 'Correct.' : `This was ${expected}.`}</b>
-          <span>{explanation}</span>
-          <NoteMap notes={[...new Set(sounded)].sort((a, b) => a - b)} defining={defining} label="What sounded"/>
-        </div>
-        {mode === 'inner' && <div className="error-replay">
-          <p className="eyebrow">NOW PLAY THE LINE BACK</p>
-          <div className="midi-monitor"><b>You played</b><span>{played.length ? played.map(note => NOTE_NAMES[note % 12]).join(' · ') : 'Nothing yet.'}</span><button onClick={() => { setPlayed([]); setReproduction(undefined); }}>Clear</button></div>
-          <div className="keyboard" aria-label="On-screen keyboard">{keys.map(note => <button key={note} disabled={Boolean(reproduction)} aria-label={`Play ${NOTE_NAMES[note % 12]}`} onClick={() => { setPlayed(current => [...current, note]); void audio.play([pitch(note)], .45); }}>{NOTE_NAMES[note % 12]}</button>)}</div>
-          <button className="submit-performance" disabled={!played.length || Boolean(reproduction)} onClick={submitReproduction}>Grade the line</button>
-          {reproduction && <p className="detector-note">{reproduction.correct ? 'Reproduced in order.' : `${reproduction.matched} of ${reproduction.total} notes right.`} Graded in order, any octave accepted.</p>}
-        </div>}
-        <button onClick={() => restart()}>Next →</button>
-      </div>}
-    </section></>;
+  return <Screen>
+    <ScreenHead title="Voicings" meta={mode === 'upper' ? upper.label : mode === 'spacing' ? spacing.label : mode === 'changed' ? changed.label : `${VOICES.length} voices`}/>
+    <ScreenBody>
+      <Tabs value={mode} onChange={value => restart(value)} options={MODES}/>
+      <div className={`drill ${titleCasable(options) ? 'caps' : ''}`}>
+        {!answer ? <>
+          <div className="prompt">
+            <button className="listen" aria-label="Play the example" onClick={play}>▶</button>
+            <h2>{HEADINGS[mode].title}</h2>
+            <p className="hint">{HEADINGS[mode].blurb}</p>
+            {mode === 'upper' && <div className="replay-actions">
+              <button onClick={() => void audio.play(upper.lower.map(pitch), 1.5)}>Hear the dominant alone</button>
+              <button onClick={() => void audio.play(upper.upper.map(pitch), 1.5)}>Hear the triad alone</button>
+            </div>}
+          </div>
+          <div className={`answers ${options.length > 10 ? 'dense' : ''}`}>{options.map(option => <button key={option} onClick={() => record(option)}>{option}</button>)}</div>
+        </> : <>
+          <div className="verdict">
+            <button className="mini-replay" aria-label="Replay the example" onClick={play}>▶</button>
+            <span>You chose</span>
+            <b className={answer === expected ? 'correct' : 'wrong'}>{answer}</b>
+            {answer !== expected && <><span>·</span><b className="correct">{expected}</b></>}
+          </div>
+          <div className="feedback">
+            <div>
+              <b>{answer === expected ? 'Correct.' : `This was ${expected}.`}</b>
+              <span>{explanation}</span>
+              <NoteMap notes={[...new Set(sounded)].sort((a, b) => a - b)} defining={defining} label="What sounded"/>
+            </div>
+            {mode === 'inner' && <div className="error-replay">
+              <span className="eyebrow">Now play the line back</span>
+              <div className="midi-monitor">
+                <b>You played</b>
+                <span>{played.length ? played.map(note => NOTE_NAMES[note % 12]).join(' · ') : 'Nothing yet.'}</span>
+                <button onClick={() => { setPlayed([]); setReproduction(undefined); }}>Clear</button>
+              </div>
+              <div className="keyboard" aria-label="On-screen keyboard">{keys.map(note => <button key={note} disabled={Boolean(reproduction)} aria-label={`Play ${NOTE_NAMES[note % 12]}`} onClick={() => { setPlayed(current => [...current, note]); void audio.play([pitch(note)], .45); }}>{NOTE_NAMES[note % 12]}</button>)}</div>
+              <div className="replay-actions">
+                <button disabled={!played.length || Boolean(reproduction)} onClick={submitReproduction}>Grade the line</button>
+              </div>
+              {reproduction && <p className="detector-note">{reproduction.correct ? 'Reproduced in order.' : `${reproduction.matched} of ${reproduction.total} notes right.`} Graded in order, any octave accepted.</p>}
+            </div>}
+          </div>
+          <div className="action-bar">
+            <b>{answer === expected ? 'Correct' : `Was ${expected}`}</b>
+            <button onClick={() => restart()}>Next →</button>
+          </div>
+        </>}
+      </div>
+    </ScreenBody>
+  </Screen>;
 }

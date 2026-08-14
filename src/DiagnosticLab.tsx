@@ -8,6 +8,8 @@ import {
 import { attemptStore } from './storage';
 import { pitch } from './theory';
 import { answersFor, generateStimulus, RECOGNITION_KINDS } from './training';
+import { Pager, Screen, ScreenBody, ScreenHead } from './ui';
+import { titleCasable } from './display';
 
 export function DiagnosticLab({ sessionId, onEvidence }: { sessionId: string; onEvidence: () => void }) {
   const [state, setState] = useState<DiagnosticState>();
@@ -42,20 +44,44 @@ export function DiagnosticLab({ sessionId, onEvidence }: { sessionId: string; on
 
   const progress = state ? diagnosticProgress(state) : undefined;
   const previous = diagnosticStore.latest();
+  const estimates = finished && state ? diagnosticEstimate(state) : [];
 
-  return <><section className="hero"><div><span className="tag">DIAGNOSTIC</span><h2>Find your envelope</h2><p>A branching assessment that climbs fast where you are strong and probes locally where you slip. It estimates a difficulty envelope per skill, never a single level.</p></div><div className="evidence"><small>Status</small><b>{state ? (finished ? 'Complete' : `${progress!.answered} answered · ${progress!.remaining} skills open`) : previous ? 'Previously taken' : 'Not yet taken'}</b><span>{previous ? `Last run ${new Date(previous.completedAt).toLocaleDateString()}` : 'Results seed the adaptive engine'}</span></div></section>
+  return <Screen>
+    <ScreenHead
+      title="Diagnostic"
+      meta={state ? (finished ? 'Complete' : `${progress!.answered} answered · ${progress!.remaining} open`) : previous ? `Last run ${new Date(previous.completedAt).toLocaleDateString()}` : 'Not yet taken'}
+    />
+    <ScreenBody>
+      {!state && <>
+        <p className="lede">A branching assessment that climbs fast where you are strong and probes locally where you slip. Each skill starts at a moderate difficulty; answer correctly and it skips ahead, miss one and it drops to find exactly where reliability stops. It estimates a difficulty envelope per skill, never a single level.</p>
+        {previous
+          ? <Pager items={Object.entries(previous.levels)} label="skills" className="grid" row={([exercise, level]) => <div className="stat" key={exercise}>
+            <strong>{level}</strong>
+            <span>{exercise.replaceAll('-', ' ')} of {MAX_DIFFICULTY_LEVEL}</span>
+          </div>}/>
+          : <div className="pager"><div className="pager-empty">Most skills settle in three to five prompts.</div></div>}
+        <div className="actions"><button className="primary" onClick={begin}>{previous ? 'Recalibrate' : 'Start diagnostic'}</button></div>
+      </>}
 
-    {!state && <section className="panel"><h2>Before you start</h2><p>Each skill starts at a moderate difficulty. Answer correctly and it jumps ahead, skipping material you clearly know; miss one and it drops to a nearby level to find exactly where reliability stops. Most skills settle in three to five prompts.</p>{previous && <div className="diagnostic-results">{Object.entries(previous.levels).map(([exercise, level]) => <div key={exercise}><b>{exercise.replaceAll('-', ' ')}</b><span>level {level} / {MAX_DIFFICULTY_LEVEL}</span></div>)}</div>}<button className="submit-performance" onClick={begin}>{previous ? 'Recalibrate' : 'Start diagnostic'}</button></section>}
+      {state && probe && stimulus && <div className={`drill ${titleCasable(answersFor(probe.config)) ? 'caps' : ''}`}>
+        <div className="prompt">
+          <button className="listen" aria-label="Play prompt" onClick={() => { if (stimulus.phrase) void audio.playProgression(stimulus.phrase.map(notes => notes.map(pitch)), probe.config.timbre, stimulus.gapSeconds); else void audio.play(stimulus.notes.map(pitch), stimulus.melodic ? .5 : 1.15, stimulus.melodic ?? false, probe.config.timbre); }}>▶</button>
+          <span className="eyebrow">{probe.exercise.replaceAll('-', ' ')} · level {probe.level} of {MAX_DIFFICULTY_LEVEL}</span>
+          <h2>{stimulus.question ?? 'Listen, then choose'}</h2>
+          <p className="hint">No feedback until the end — this is measurement, not practice.</p>
+        </div>
+        <div className={`answers ${answersFor(probe.config).length > 10 ? 'dense' : ''}`}>{answersFor(probe.config).map(option => <button key={option} onClick={() => answer(option)}>{option}</button>)}</div>
+      </div>}
 
-    {state && probe && stimulus && <section className="drill"><button className="listen" aria-label="Play prompt" onClick={() => { if (stimulus.phrase) void audio.playProgression(stimulus.phrase.map(notes => notes.map(pitch)), probe.config.timbre, stimulus.gapSeconds); else void audio.play(stimulus.notes.map(pitch), stimulus.melodic ? .5 : 1.15, stimulus.melodic ?? false, probe.config.timbre); }}><span>▶</span></button>
-      <p className="eyebrow">{probe.exercise.replaceAll('-', ' ')} · level {probe.level} of {MAX_DIFFICULTY_LEVEL}</p>
-      <h3>{stimulus.question ?? 'Listen, then choose'}</h3>
-      <p className="hint">No feedback until the end — this is measurement, not practice.</p>
-      <div className={`answers ${answersFor(probe.config).length > 4 ? 'many' : ''}`}>{answersFor(probe.config).map(option => <button key={option} onClick={() => answer(option)}>{option}</button>)}</div>
-    </section>}
-
-    {finished && state && <section className="panel"><h2>Your difficulty envelope</h2><p>Each skill is reported at the hardest level you demonstrated, with the conditions that go with it. Nothing here collapses into one score.</p>
-      <div className="diagnostic-results">{diagnosticEstimate(state).map(estimate => <div key={estimate.exercise}><b>{estimate.exercise.replaceAll('-', ' ')}</b><span>level {estimate.level} / {MAX_DIFFICULTY_LEVEL}</span><small>{estimate.ceilingKnown ? `Ceiling found in ${estimate.items} prompt${estimate.items === 1 ? '' : 's'}` : `No ceiling reached in ${estimate.items} prompts`}</small><small className="conditions">{estimate.config.rootPool === 'all' ? 'all roots' : 'natural roots'} · {estimate.config.register} register · {estimate.config.timbre}{estimate.config.inversions ? ' · inversions' : ''}{estimate.config.exposure === 'short' ? ' · short exposure' : ''}{estimate.config.deadline !== 'none' ? ` · ${estimate.config.deadline}s deadline` : ''}</small></div>)}</div>
-      <button className="submit-performance" onClick={begin}>Run it again</button></section>}
-  </>;
+      {finished && state && <>
+        <p className="lede">Each skill is reported at the hardest level you demonstrated, with the conditions that go with it. Nothing here collapses into one score.</p>
+        <Pager items={estimates} label="skills" row={estimate => <div className="row" key={estimate.exercise}>
+          <b>{estimate.exercise.replaceAll('-', ' ')}</b>
+          <span className="pill growth">level {estimate.level}/{MAX_DIFFICULTY_LEVEL}</span>
+          <small>{estimate.ceilingKnown ? `Ceiling found in ${estimate.items} prompt${estimate.items === 1 ? '' : 's'}` : `No ceiling reached in ${estimate.items} prompts`} · {estimate.config.rootPool === 'all' ? 'all roots' : 'natural roots'} · {estimate.config.register} register · {estimate.config.timbre}{estimate.config.inversions ? ' · inversions' : ''}{estimate.config.exposure === 'short' ? ' · short exposure' : ''}{estimate.config.deadline !== 'none' ? ` · ${estimate.config.deadline}s deadline` : ''}</small>
+        </div>}/>
+        <div className="actions"><button className="primary" onClick={begin}>Run it again</button></div>
+      </>}
+    </ScreenBody>
+  </Screen>;
 }

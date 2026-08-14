@@ -7,12 +7,10 @@ import {
   generateTranscription, gradeChordLabels, gradeNotes, HINT_LADDER, hintsFor,
   type MixDensity, type SequenceGrade, type TranscriptionTaskKind,
 } from './transcribe';
+import { Screen, ScreenBody, ScreenHead, Tabs } from './ui';
 
-const KINDS: { id: TranscriptionTaskKind; label: string; bars: number }[] = [
-  { id: 'melody-echo', label: 'Melody echo', bars: 1 },
-  { id: 'melody', label: 'Melody', bars: 2 },
-  { id: 'bass', label: 'Bass line', bars: 2 },
-  { id: 'chords', label: 'Chords', bars: 2 },
+const KINDS: readonly (readonly [TranscriptionTaskKind, string])[] = [
+  ['melody-echo', 'Echo'], ['melody', 'Melody'], ['bass', 'Bass'], ['chords', 'Chords'],
 ];
 const LENGTHS = [2, 4, 8, 16];
 const DENSITIES: { id: MixDensity; label: string; noise: number }[] = [
@@ -74,36 +72,54 @@ export function TranscribeLab({ sessionId, onEvidence }: { sessionId: string; on
 
   const keys = Array.from({ length: 25 }, (_, index) => 60 + index);
 
-  return <><section className="hero"><div><span className="tag">TRANSCRIPTION</span><h2>Transcribe what you hear</h2><p>Generated material with a known answer, so a line or a progression can be graded note by note — and a hint given only when you ask for one.</p></div><div className="evidence"><small>Task</small><b>{KINDS.find(item => item.id === kind)!.label} · {chordsOnly || kind !== 'melody-echo' ? `${bars} bars` : '1 bar'}</b><span>{DENSITIES.find(item => item.id === density)!.label}</span></div></section>
+  return <Screen>
+    <ScreenHead title="Transcribe" meta={`${chordsOnly || kind !== 'melody-echo' ? `${bars} bars` : '1 bar'} · ${DENSITIES.find(item => item.id === density)!.label}`}/>
+    <ScreenBody>
+      <Tabs value={kind} onChange={value => restart({ kind: value })} options={KINDS}/>
 
-    <div className="mode-tabs">{KINDS.map(item => <button key={item.id} className={kind === item.id ? 'selected' : ''} onClick={() => restart({ kind: item.id })}>{item.label}</button>)}</div>
-
-    <section className="panel transcribe-panel">
-      <div className="performance-controls">
+      <div className="fields" style={{ flex: '0 0 auto' }}>
         <label>Length<select value={bars} disabled={kind === 'melody-echo'} onChange={event => restart({ bars: Number(event.target.value) })}>{LENGTHS.map(value => <option key={value} value={value}>{value} bars</option>)}</select></label>
         <label>Mix<select value={density} onChange={event => restart({ density: event.target.value as MixDensity })}>{DENSITIES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
       </div>
 
-      <button className="listen" aria-label="Play excerpt" onClick={play}><span>▶</span></button>
-
-      {chordsOnly
-        ? <label className="harmony-entry">Chord symbols<textarea value={chordText} disabled={Boolean(grade)} onChange={event => setChordText(event.target.value)} placeholder="Dm7 | G7 | Cmaj7"/><small>Any equivalent spelling is accepted — Cmaj7, CM7 and CΔ7 all count, as do enharmonic roots.</small></label>
-        : <><div className="midi-monitor"><b>Your line</b><span>{entered.length ? entered.map(note => NOTE_NAMES[note % 12]).join(' · ') : 'Play the notes on the keyboard below.'}</span><button onClick={() => setEntered([])}>Clear</button></div>
-          <div className="keyboard" aria-label="Note entry keyboard">{keys.map(note => <button key={note} disabled={Boolean(grade)} aria-label={`Enter ${NOTE_NAMES[note % 12]}`} onClick={() => { setEntered(current => [...current, note]); void audio.play([pitch(note)], .4); }}>{NOTE_NAMES[note % 12]}</button>)}</div></>}
-
-      <div className="replay-actions">
-        <button className="submit-performance" disabled={Boolean(grade) || (chordsOnly ? !chordText.trim() : !entered.length)} onClick={submit}>Submit transcription</button>
-        <button disabled={hints >= HINT_LADDER.length || Boolean(grade)} onClick={() => setHints(value => value + 1)}>Hint ({HINT_LADDER.length - hints} left)</button>
-        <button onClick={() => restart()}>New excerpt →</button>
+      <div className="prompt">
+        <button className="listen" aria-label="Play excerpt" onClick={play}>▶</button>
+        <p className="hint">Generated material with a known answer, so it can be graded note by note — and a hint given only when you ask.</p>
       </div>
 
-      {hints > 0 && <div className="hint-list">{hintsFor(task, hints).map(text => <p key={text}>{text}</p>)}</div>}
+      {chordsOnly
+        ? <label className="harmony-entry" style={{ flex: '1 1 auto', minHeight: 0 }}>
+          Chord symbols
+          <textarea value={chordText} disabled={Boolean(grade)} onChange={event => setChordText(event.target.value)} placeholder="Dm7 | G7 | Cmaj7"/>
+          <small className="hint">Any equivalent spelling counts — Cmaj7, CM7 and CΔ7 all pass, as do enharmonic roots.</small>
+        </label>
+        : <>
+          <div className="midi-monitor">
+            <b>Your line</b>
+            <span>{entered.length ? entered.map(note => NOTE_NAMES[note % 12]).join(' · ') : 'Play the notes below.'}</span>
+            <button onClick={() => setEntered([])}>Clear</button>
+          </div>
+          {/* Once graded the keyboard is inert, so it gives its space back to
+              the result instead of sitting there disabled. */}
+          {!grade && <div className="keyboard" aria-label="Note entry keyboard">{keys.map(note => <button key={note} aria-label={`Enter ${NOTE_NAMES[note % 12]}`} onClick={() => { setEntered(current => [...current, note]); void audio.play([pitch(note)], .4); }}>{NOTE_NAMES[note % 12]}</button>)}</div>}
+        </>}
 
-      {grade && <div className={`transcription-result ${grade.correct ? 'pass' : 'fail'}`}>
-        <div><strong>{grade.matched}/{grade.total}</strong><span>{chordsOnly ? 'chords' : 'notes'} correct</span></div>
-        <p>{task.templateName} in {NOTE_NAMES[task.keyPitchClass]} — {task.romans.join(' – ')}{hints > 0 ? ` · ${hints} hint${hints === 1 ? '' : 's'} used` : ''}</p>
-        {!chordsOnly && <NoteMap notes={task.line} defining={task.line.filter((note, index) => !grade.perItem[index])} label="Expected line — missed notes highlighted"/>}
-        <button onClick={() => restart()}>Try another →</button>
-      </div>}
-    </section></>;
+      {hints > 0 && !grade && <div className="hint-list">{hintsFor(task, hints).map(text => <p key={text}>{text}</p>)}</div>}
+
+      {grade
+        ? <div className={`result ${grade.correct ? 'pass' : 'fail'}`}>
+          <div>
+            <strong>{grade.matched}/{grade.total}</strong>
+            <span>{chordsOnly ? 'chords' : 'notes'} correct · {task.templateName} in {NOTE_NAMES[task.keyPitchClass]} — {task.romans.join(' – ')}{hints > 0 ? ` · ${hints} hint${hints === 1 ? '' : 's'}` : ''}</span>
+          </div>
+          {!chordsOnly && <div><NoteMap notes={task.line} defining={task.line.filter((_, index) => !grade.perItem[index])} label="Expected — missed highlighted"/></div>}
+          <p><button className="primary" onClick={() => restart()}>Try another →</button></p>
+        </div>
+        : <div className="actions">
+          <button className="primary" disabled={chordsOnly ? !chordText.trim() : !entered.length} onClick={submit}>Submit</button>
+          <button className="ghost" disabled={hints >= HINT_LADDER.length} onClick={() => setHints(value => value + 1)}>Hint ({HINT_LADDER.length - hints} left)</button>
+          <button className="ghost" onClick={() => restart()}>New excerpt →</button>
+        </div>}
+    </ScreenBody>
+  </Screen>;
 }

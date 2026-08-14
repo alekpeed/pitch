@@ -7,6 +7,7 @@ import {
 } from './performance';
 import { attemptStore } from './storage';
 import { NOTE_NAMES, pitch } from './theory';
+import { Screen, ScreenBody, ScreenHead, Tabs } from './ui';
 
 type Mode = 'call' | 'functional';
 type Input = 'keyboard' | 'fretboard';
@@ -62,43 +63,50 @@ export function PerformLab({ sessionId, onEvidence }: { sessionId: string; onEvi
 
   const keys = Array.from({ length: 37 }, (_, index) => 48 + index);
 
-  return <><section className="hero"><div><span className="tag">PERFORMANCE</span><h2>{mode === 'call' ? 'Call and response' : 'Play it by function'}</h2><p>{mode === 'call' ? 'The app plays; you reproduce it. Melodic calls are graded in order, simultaneous ones as a set, because a chord has no inherent note order.' : 'Instructions are given functionally rather than as note names, so the theory has to be turned into sound.'}</p></div><div className="evidence"><small>{mode === 'call' ? 'Call' : 'Prompt'}</small><b>{mode === 'call' ? call.label : functional.label}</b><span>Any octave accepted</span></div></section>
+  return <Screen>
+    <ScreenHead title="Perform" meta={mode === 'call' ? call.label : functional.label}/>
+    <ScreenBody>
+      <Tabs value={mode} onChange={value => restart({ mode: value })} options={[['call', 'Call and response'], ['functional', 'Functional prompts']]}/>
 
-    <div className="mode-tabs">
-      <button className={mode === 'call' ? 'selected' : ''} onClick={() => restart({ mode: 'call' })}>Call and response</button>
-      <button className={mode === 'functional' ? 'selected' : ''} onClick={() => restart({ mode: 'functional' })}>Functional prompts</button>
-    </div>
-
-    <section className="panel performance-panel">
-      <div className="performance-controls">
+      <div className="fields" style={{ flex: '0 0 auto' }}>
         {mode === 'call' && <label>Call type<select value={callKind} onChange={event => restart({ callKind: event.target.value as CallKind })}>{CALL_KINDS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>}
         <label>Input<select value={input} onChange={event => restart({ input: event.target.value as Input })}><option value="keyboard">Keyboard</option><option value="fretboard">Guitar fretboard</option></select></label>
       </div>
 
-      {mode === 'call'
-        ? <><button className="listen" aria-label="Play the call" onClick={playCall}><span>▶</span></button><h3>{call.instruction}</h3></>
-        : <h3>{functional.instruction}</h3>}
-      <p className="hint">{mode === 'call' ? 'Listen, then play it back.' : 'No reference is played — this is production from theory.'}</p>
-
-      <div className="midi-monitor"><b>You played</b><span>{played.length ? played.map(note => `${NOTE_NAMES[note % 12]}${Math.floor(note / 12) - 1}`).join(' · ') : 'Nothing yet.'}</span><button onClick={() => setPlayed([])}>Clear</button></div>
-
-      {input === 'keyboard'
-        ? <div className="keyboard" aria-label="On-screen keyboard">{keys.map(note => <button key={note} disabled={Boolean(result)} aria-label={`Play ${NOTE_NAMES[note % 12]}`} onClick={() => strike(note)}>{NOTE_NAMES[note % 12]}</button>)}</div>
-        : <div className="fretboard" aria-label="Guitar fretboard, standard tuning">{[...GUITAR_TUNING].map((open, stringIndex) => <div className="string" key={stringIndex}>
-            <span className="open-label">{NOTE_NAMES[open % 12]}</span>
-            {Array.from({ length: FRET_COUNT + 1 }, (_, fret) => <button key={fret} disabled={Boolean(result)} aria-label={`String ${stringIndex + 1} fret ${fret}`} onClick={() => strike(fretToMidi(stringIndex, fret))}>{fret === 0 ? '○' : fret}</button>)}
-          </div>).reverse()}</div>}
-
-      <div className="replay-actions">
-        <button className="submit-performance" disabled={!played.length || Boolean(result)} onClick={submit}>Grade performance</button>
-        <button onClick={() => restart()}>{mode === 'call' ? 'New call →' : 'New prompt →'}</button>
+      <div className="prompt">
+        {mode === 'call' && <button className="listen" aria-label="Play the call" onClick={playCall}>▶</button>}
+        <h2>{mode === 'call' ? call.instruction : functional.instruction}</h2>
+        <p className="hint">{mode === 'call' ? 'Listen, then play it back. Any octave accepted.' : 'No reference is played — this is production from theory.'}</p>
       </div>
 
-      {result && <div className={`performance-result ${result.correct ? 'pass' : 'fail'}`}>
-        <b>{result.correct ? 'Reproduced.' : `${result.matched} of ${result.total} right.`}</b>
-        <span>{ordered ? 'Graded in order' : 'Graded as a set'} · any octave accepted</span>
-        <NoteMap notes={expected} defining={expected.filter((note, index) => !result.perItem[index])} label="Expected — missed notes highlighted"/>
-        <button onClick={() => restart()}>Next →</button>
-      </div>}
-    </section></>;
+      <div className="midi-monitor">
+        <b>You played</b>
+        <span>{played.length ? played.map(note => `${NOTE_NAMES[note % 12]}${Math.floor(note / 12) - 1}`).join(' · ') : 'Nothing yet.'}</span>
+        <button onClick={() => setPlayed([])}>Clear</button>
+      </div>
+
+      {/* Once graded the input surface is inert, so it gives its space back to
+          the result instead of sitting there disabled. */}
+      {!result && (input === 'keyboard'
+        ? <div className="keyboard" aria-label="On-screen keyboard">{keys.map(note => <button key={note} aria-label={`Play ${NOTE_NAMES[note % 12]}`} onClick={() => strike(note)}>{NOTE_NAMES[note % 12]}</button>)}</div>
+        : <div className="fretboard" aria-label="Guitar fretboard, standard tuning">{[...GUITAR_TUNING].map((open, stringIndex) => <div className="string" key={stringIndex}>
+            <span className="open-label">{NOTE_NAMES[open % 12]}</span>
+            {Array.from({ length: FRET_COUNT + 1 }, (_, fret) => <button key={fret} aria-label={`String ${stringIndex + 1} fret ${fret}`} onClick={() => strike(fretToMidi(stringIndex, fret))}>{fret === 0 ? '○' : fret}</button>)}
+          </div>).reverse()}</div>)}
+
+      {result
+        ? <div className={`result ${result.correct ? 'pass' : 'fail'}`}>
+          <div>
+            <strong>{result.correct ? 'Reproduced' : `${result.matched} of ${result.total}`}</strong>
+            <span>{ordered ? 'Graded in order' : 'Graded as a set'} · any octave accepted</span>
+          </div>
+          <div><NoteMap notes={expected} defining={expected.filter((_, index) => !result.perItem[index])} label="Expected — missed highlighted"/></div>
+          <p><button className="primary" onClick={() => restart()}>Next →</button></p>
+        </div>
+        : <div className="actions end">
+          <button className="ghost" onClick={() => restart()}>{mode === 'call' ? 'New call →' : 'New prompt →'}</button>
+          <button className="primary" disabled={!played.length} onClick={submit}>Grade performance</button>
+        </div>}
+    </ScreenBody>
+  </Screen>;
 }
