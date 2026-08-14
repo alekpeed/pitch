@@ -113,7 +113,30 @@ export function liftAboveMud(midiNotes: number[], ceiling = 84): number[] {
   return lifted;
 }
 
+/**
+ * Every generator in the app calls this, and every "next prompt" advances the
+ * seed by exactly 1 (or reseeds from Date.now(), which moves by 1 per
+ * millisecond) — so nearby seeds are the normal case, not an edge case. A raw
+ * LCG's *first* output is nearly linear in the seed (multiplying a delta of 1
+ * by the LCG's own multiplier is still a tiny fraction of the output range),
+ * so seed and seed+1 produced almost the same first draw — measured at ~215
+ * consecutive seeds before that draw moved to a different bucket at all. Any
+ * generator whose most salient value is the first random() call (a chord
+ * root, say) looked stuck on one answer for hundreds of prompts in a row.
+ * Scrambling the seed once with a standard integer finalizer (Murmur3's
+ * fmix32) before iterating fixes that: two adjacent seeds now produce
+ * unrelated starting states, so the first draw decorrelates immediately,
+ * while a given seed still always produces the same sequence.
+ */
+function scramble(seed: number): number {
+  let h = seed >>> 0;
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35) >>> 0;
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
 export function seededRandom(seed: number) {
-  let value = seed >>> 0;
+  let value = scramble(seed);
   return () => { value = (value * 1664525 + 1013904223) >>> 0; return value / 4294967296; };
 }
