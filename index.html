@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- viewport-fit=cover plus the safe-area padding in styles.css (.app) is
+         belt-and-suspenders alongside the native opt-out in styles.xml: if a
+         device still draws edge-to-edge despite the opt-out, or a future
+         Android removes the opt-out entirely, content still clears the status
+         bar and gesture nav instead of running under them. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Perfect Ear</title>
   </head>
   <body>

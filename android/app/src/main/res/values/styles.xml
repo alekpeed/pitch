@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
@@ -7,6 +7,14 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
+        <!-- Android 15 (API 35) enforces edge-to-edge for apps targeting SDK 35
+             regardless of WindowCompat.setDecorFitsSystemWindows — that call alone
+             stopped being sufficient once this app started targeting 35. This is
+             the documented opt-out. Google has said it is temporary and will be
+             removed in a future release, at which point the app needs to actually
+             handle insets (see the safe-area padding in styles.css) rather than
+             opt out — that CSS is already in place as the durable fallback. -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>
 
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
@@ -18,5 +26,9 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- MainActivity runs under this theme for its whole lifetime (nothing
+             switches it after the splash dismisses), so the opt-out has to live
+             here too, not just on AppTheme. -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>
 </resources>
