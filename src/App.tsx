@@ -15,7 +15,10 @@ import {
   applyProfile, currentStage, PROFILES, profileConfig, profileFor, profileProgressionIds, profileSpacings,
   profileStore, PRODUCTION_EXERCISES, stageProgress, TRANSFER_EXERCISES, VOICING_EXERCISES, type ProfileId,
 } from './curriculum';
+import { buildDay, dayFor, dayPlan, placementDay, TOTAL_DAYS } from './path';
+import { dayStore, localDate, standing } from './progression';
 import { CLEAR_FRACTION, currentSection, SECTIONS, sectionOf, sectionProgress, unlockedExercises } from './sections';
+import { dayBriefing, dayReport } from './tutor';
 import { TextureLab } from './TextureLab';
 import { DataPanel } from './DataPanel';
 import { journal, noteStore, renderEntry, type PerceivedDifficulty } from './journal';
@@ -31,8 +34,8 @@ import { Pager, Screen, ScreenBody, ScreenHead, Tabs } from './ui';
 import { titleCasable } from './display';
 import './styles.css';
 
-type Page = 'Daily' | 'Diagnostic' | 'Practice' | 'Curriculum' | 'Harmony' | 'Voicings' | 'Performance' | 'Perform' | 'Harmonize' | 'Transcribe' | 'Transcription' | 'Singing' | 'Explore' | 'Progress' | 'Settings';
-const PAGES: Page[] = ['Daily', 'Diagnostic', 'Practice', 'Curriculum', 'Harmony', 'Voicings', 'Performance', 'Perform', 'Harmonize', 'Transcribe', 'Transcription', 'Singing', 'Explore', 'Progress', 'Settings'];
+type Page = 'Today' | 'Daily' | 'Diagnostic' | 'Practice' | 'Curriculum' | 'Harmony' | 'Voicings' | 'Performance' | 'Perform' | 'Harmonize' | 'Transcribe' | 'Transcription' | 'Singing' | 'Explore' | 'Progress' | 'Settings';
+const PAGES: Page[] = ['Today', 'Daily', 'Diagnostic', 'Practice', 'Curriculum', 'Harmony', 'Voicings', 'Performance', 'Perform', 'Harmonize', 'Transcribe', 'Transcription', 'Singing', 'Explore', 'Progress', 'Settings'];
 const DRILL_KINDS: ExerciseKind[] = [...RECOGNITION_KINDS];
 // The voicing drills are recognition work too, so they rank and schedule alongside
 // the rest rather than sitting in a lab the engine cannot reach.
@@ -67,7 +70,9 @@ function pageFor(exercise: string): Page {
 const initialConfig: DrillConfig = { kind: 'triad', rootPool: 'all', inversions: true, melodic: false, register: 'random', timbre: 'piano' };
 
 export default function App() {
-  const [page, setPage] = useState<Page>(() => location.hash === '#performance' ? 'Performance' : location.hash === '#transcription' ? 'Transcription' : 'Practice');
+  // The pathway is the front door. Landing on a bare drill was what made the app
+  // feel like a pile of exercises rather than a course.
+  const [page, setPage] = useState<Page>(() => location.hash === '#performance' ? 'Performance' : location.hash === '#transcription' ? 'Transcription' : 'Today');
   const [config, setConfig] = useState(initialConfig);
   const [seed, setSeed] = useState(() => Date.now());
   const [answer, setAnswer] = useState<string>();
@@ -95,6 +100,11 @@ export default function App() {
   const [draftObservation, setDraftObservation] = useState('');
   const [draftPerceived, setDraftPerceived] = useState<PerceivedDifficulty>();
   const [noteSaved, setNoteSaved] = useState(false);
+  // Attempt ids belonging to the day in progress, so the end-of-day report reads
+  // this session's work rather than the whole history.
+  const [dayAttemptIds, setDayAttemptIds] = useState<string[]>([]);
+  const [dayNumber, setDayNumber] = useState<number>();
+  const [dayFinished, setDayFinished] = useState(false);
   const profile = profileFor(profileId);
   const audio = useMemo(() => new AudioEngine(), []);
   const stimulus = useMemo(() => generateStimulus(seed, config), [seed, config]);
@@ -172,6 +182,43 @@ export default function App() {
     return adjustDrill(seated, step, weakest);
   }
 
+  /**
+   * The day's defined work. Placement means someone with existing evidence — or
+   * a fresh diagnostic — is not sent back to "did the second note go up".
+   */
+  const dayRecords = dayStore.all();
+  const standingNow = standing(dayRecords);
+  const placed = Math.max(placementDay(states), dayFor(standingNow.completedDays));
+  const todayDay = dayNumber ?? placed;
+  const todayPlan = dayPlan(todayDay);
+  const briefing = dayBriefing(todayDay, dayRecords);
+  const report = dayFinished ? dayReport({ day: todayDay, attempts, todayIds: new Set(dayAttemptIds) }) : undefined;
+
+  function startDay(day = placed) {
+    const due = retentionStore.due().filter(probe => isLive(probe.exercise));
+    const slots = buildDay(day, {
+      configFor: exercise => kindOf(exercise) ? tunedConfig(exercise) : undefined,
+      reasonFor: exercise => ranked.find(item => item.exercise === exercise)?.reason,
+      dueRetention: due.map(probe => ({ exercise: probe.exercise, probeId: probe.id })),
+    });
+    setDayNumber(day); setDayAttemptIds([]); setDayFinished(false);
+    setPlan(slots); setPlanIndex(0);
+    if (slots.length) openSlot(slots[0], 0);
+  }
+
+  /** Writes the day into the dated record, which is what a streak is built from. */
+  function finishDay() {
+    const done = attempts.filter(attempt => dayAttemptIds.includes(attempt.id));
+    const latencies = done.map(attempt => attempt.latencyMs).sort((a, b) => a - b);
+    dayStore.complete({
+      day: todayDay, date: localDate(),
+      correct: done.filter(attempt => attempt.correct).length, total: done.length,
+      medianLatencyMs: latencies.length ? latencies[Math.floor(latencies.length / 2)] : 0,
+    });
+    setPlan([]); setPlanIndex(0); setDayFinished(true); setPage('Today');
+    setHistoryVersion(value => value + 1);
+  }
+
   function startDaily(total = 20) {
     const due = retentionStore.due().filter(probe => isLive(probe.exercise));
     const growthTarget = ranked[0]?.exercise;
@@ -217,14 +264,20 @@ export default function App() {
 
   function advancePlan() {
     const nextIndex = planIndex + 1;
-    if (nextIndex >= plan.length) { setPlan([]); setPlanIndex(0); setPage('Daily'); return; }
+    if (nextIndex >= plan.length) {
+      // A pathway day ends by being recorded; a free session just ends.
+      if (dayNumber !== undefined) return finishDay();
+      setPlan([]); setPlanIndex(0); setPage('Daily'); return;
+    }
     openSlot(plan[nextIndex], nextIndex);
   }
   function submit(response: string, confidence?: Confidence) {
     if (answer) return;
     setAnswer(response); setPendingAnswer(undefined);
+    const attemptId = crypto.randomUUID();
+    if (dayNumber !== undefined && plan.length) setDayAttemptIds(current => [...current, attemptId]);
     attemptStore.add({
-      id: crypto.randomUUID(), sessionId, timestamp: new Date().toISOString(), exercise: `${config.kind}-recognition`,
+      id: attemptId, sessionId, timestamp: new Date().toISOString(), exercise: `${config.kind}-recognition`,
       stimulus: { ...stimulus, timbre: config.timbre }, expected: stimulus.answer, response,
       correct: response === stimulus.answer, latencyMs: Date.now() - startedAt,
       // The number of options is part of the difficulty: a genre profile narrows
@@ -318,6 +371,61 @@ export default function App() {
         <button className="menu" onClick={advancePlan}>{planIndex + 1 >= plan.length ? 'Finish' : 'Skip'}</button>
         <button className="menu" onClick={() => { setPlan([]); setPlanIndex(0); setPage('Daily'); }}>End</button>
       </div>}
+
+      {page === 'Today' && <Screen>
+        <ScreenHead
+          title={`Day ${todayDay}`}
+          meta={`${todayPlan.section.name} · ${standingNow.streak} day streak`}
+        />
+        <ScreenBody>
+          {report ? <>
+            {/* The graded report is the point of a day ending: it says what
+                happened, in terms specific enough to act on. */}
+            <div className="day-result">
+              <b className={`grade grade-${report.grade}`}>{report.grade}</b>
+              <div>
+                <strong>{report.headline}</strong>
+                <span>{report.next}</span>
+              </div>
+            </div>
+            <Pager items={report.notes} label="notes" empty="Not enough in this day to draw anything from." row={(note, index) => <div className="row" key={index}><small>{note}</small></div>}/>
+            <div className="actions">
+              <button className="primary" onClick={() => { setDayFinished(false); setDayNumber(undefined); }}>Done</button>
+              <button className="ghost" onClick={() => startDay(todayDay)}>Repeat day {todayDay}</button>
+            </div>
+          </> : plan.length > 0 && dayNumber !== undefined ? <>
+            <p className="lede">Day {todayDay} in progress — {planIndex} of {plan.length} answered.</p>
+            <Pager items={plan} label="items" row={(slot, index) => <div key={index} className={`row ${index === planIndex ? 'current' : index < planIndex ? 'done' : ''}`}>
+              <b>{title(slot.exercise)}</b>
+              <span className={`pill ${slot.purpose}`}>{slot.purpose}</span>
+              <small>{slot.reason}</small>
+            </div>}/>
+            <div className="actions">
+              <button className="primary" onClick={() => openSlot(plan[planIndex], planIndex)}>Resume →</button>
+              <button className="ghost" onClick={() => { setPlan([]); setPlanIndex(0); setDayNumber(undefined); }}>Put it down</button>
+            </div>
+          </> : <>
+            <p className="lede">{briefing}</p>
+            <div className="stats">
+              <div className="stat"><strong>{todayDay}</strong><span>of {TOTAL_DAYS} days</span></div>
+              <div className="stat"><strong>{standingNow.streak}</strong><span>day streak</span></div>
+              <div className="stat"><strong>{standingNow.recentDaysWorked}</strong><span>of last 14</span></div>
+              <div className="stat"><strong>{standingNow.lastGrade ?? '—'}</strong><span>last grade</span></div>
+            </div>
+            <Pager items={todayPlan.section.exercises} label="drills" className="grid" row={exercise => <div className="profile-card" key={exercise}>
+              <b style={{ textTransform: 'capitalize' }}>{title(exercise.replace('-recognition', ''))}</b>
+              <span>{stateFor(exercise)?.mastery ?? 'new'}</span>
+            </div>}/>
+            <div className="actions">
+              {standingNow.doneToday
+                ? <button className="primary" onClick={() => startDay(placed)}>Extra day {placed} →</button>
+                : <button className="primary" onClick={() => startDay(placed)}>Start day {placed} →</button>}
+              <button className="ghost" onClick={() => goTo('Explore')}>Practise something else</button>
+            </div>
+            {standingNow.doneToday && <p className="hint">Today’s work is already recorded. Anything more is extra — it still counts as practice, and nothing is capped.</p>}
+          </>}
+        </ScreenBody>
+      </Screen>}
 
       {page === 'Daily' && <Screen>
         <ScreenHead title="Daily" meta={`Section ${sectionNow.index + 1} of ${SECTIONS.length} · ${retentionDue.length} probe${retentionDue.length === 1 ? '' : 's'} due`}/>

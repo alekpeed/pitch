@@ -24,6 +24,12 @@ export interface Section {
 
 export const SECTIONS: readonly Section[] = [
   {
+    id: 'first-sounds',
+    name: 'First sounds',
+    goal: 'Hear that two notes differ, which way the second one went, and whether it was near or far.',
+    exercises: ['direction-recognition', 'motion-recognition', 'distance-recognition'],
+  },
+  {
     id: 'foundations',
     name: 'Foundations',
     goal: 'Place a note against a tonic you have just heard, and name the distance between two notes.',

@@ -10,10 +10,46 @@ describe('training engine', () => {
     expect([0, 2, 4, 5, 7, 9, 11]).toContain(stimulus.root % 12); expect(stimulus.root).toBeGreaterThanOrEqual(60); expect(stimulus.inversion).toBe(0);
   });
   it('establishes tonic before a scale-degree target', () => expect(generateStimulus(5, config({ kind: 'scale-degree' })).contextNotes).toHaveLength(3));
+  it('sounds the ground-floor drills as two notes, one after the other', () => {
+    (['direction', 'motion', 'distance'] as const).forEach(kind => {
+      for (let seed = 0; seed < 20; seed += 1) {
+        const stimulus = generateStimulus(seed, config({ kind }));
+        expect(stimulus.notes).toHaveLength(2);
+        expect(stimulus.melodic).toBe(true);
+        expect(answersFor(config({ kind }))).toContain(stimulus.answer);
+      }
+    });
+  });
+  it('moves the second note the way a direction drill says it did', () => {
+    for (let seed = 0; seed < 30; seed += 1) {
+      const [first, second] = generateStimulus(seed, config({ kind: 'direction' })).notes;
+      const stimulus = generateStimulus(seed, config({ kind: 'direction' }));
+      expect(second === first).toBe(false);
+      expect(second > first ? 'up' : 'down').toBe(stimulus.answer);
+    }
+  });
+  it('repeats the note exactly when a motion drill says nothing changed', () => {
+    for (let seed = 0; seed < 40; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'motion' }));
+      const [first, second] = stimulus.notes;
+      expect(first === second).toBe(stimulus.answer === 'same note');
+    }
+  });
+  it('keeps steps and leaps far enough apart to be a fair question', () => {
+    for (let seed = 0; seed < 40; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'distance' }));
+      const size = Math.abs(stimulus.notes[1] - stimulus.notes[0]);
+      if (stimulus.answer === 'a step') expect(size).toBeLessThanOrEqual(2);
+      else expect(size).toBeGreaterThanOrEqual(5);
+    }
+  });
   it('makes the requested chord member the sounding bass', () => {
     for (let seed = 0; seed < 10; seed += 1) { const stimulus = generateStimulus(seed, config({ kind: 'bass' })); expect(stimulus.inversion).toBe(['root in bass', 'third in bass', 'fifth in bass'].indexOf(stimulus.answer)); }
   });
-  it('recommends an unpracticed or weaker area', () => expect(recommendKind([{ exercise: 'scale-degree-recognition', correct: true }])).toBe('interval'));
+  it('recommends an unpracticed or weaker area', () => expect(recommendKind([{ exercise: 'scale-degree-recognition', correct: true }])).toBe('direction'));
+  it('recommends only from what it is offered', () => {
+    expect(recommendKind([{ exercise: 'triad-recognition', correct: true }], ['triad', 'seventh'])).toBe('seventh');
+  });
   it('keeps the same interval when only the playback style changes', () => {
     // The together / one-after-another toggle changes presentation, never the
     // question — toggling mid-prompt must not hand the user a new interval.

@@ -615,6 +615,17 @@ input[type=checkbox] { accent-color: var(--accent); }
 .profile-card span { font-size: .72rem; color: var(--muted); }
 .profile-card em { font-style: normal; font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 
+/* The end-of-day verdict: one large grade, and what it means beside it. */
+.day-result { display: flex; align-items: center; gap: .75rem; padding: .7rem .8rem; border-radius: var(--r-card); border: 1px solid var(--line); background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--shadow-sm); }
+.day-result > div { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.day-result strong { font-size: .84rem; }
+.day-result span { font-size: .72rem; color: var(--muted); }
+.day-result .grade { display: grid; place-items: center; flex: 0 0 auto; width: 2.6rem; height: 2.6rem; border-radius: 50%; font-size: 1.3rem; font-weight: 700; border: 2px solid currentColor; }
+.grade-A { color: var(--ok); }
+.grade-B { color: var(--accent); }
+.grade-C { color: var(--warm); }
+.grade-D { color: var(--no); }
+
 .stage-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .stage-skills { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .3rem; }
 .stage-skills button { font-size: .68rem; text-transform: capitalize; padding: .22rem .5rem; border-radius: 999px; background: transparent; border: 1px solid var(--line-strong); color: var(--muted); }

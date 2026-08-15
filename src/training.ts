@@ -6,7 +6,13 @@ import {
   type AlteredQuality, type ChordQuality, type ExtensionQuality, type SeventhQuality,
 } from './theory';
 
-export type ExerciseKind = 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass' | 'tonal-center' | 'mode' | 'extension' | 'altered' | 'decomposition' | 'slash-chord' | 'delayed-comparison' | 'multibar-memory';
+/**
+ * `direction`, `motion` and `distance` are the ground floor, below named
+ * intervals. Naming an interval already assumes you can hold two pitches and
+ * measure between them; these ask only whether the second note moved, which way,
+ * and roughly how far. Two or three buttons each, and nothing to know in advance.
+ */
+export type ExerciseKind = 'direction' | 'motion' | 'distance' | 'scale-degree' | 'interval' | 'triad' | 'seventh' | 'bass' | 'tonal-center' | 'mode' | 'extension' | 'altered' | 'decomposition' | 'slash-chord' | 'delayed-comparison' | 'multibar-memory';
 export type Vocabulary = 'diatonic' | 'chromatic';
 /** 'both' plays the chord whole and then arpeggiates it — the most information, so the easiest rung. */
 export type Presentation = 'both' | 'block' | 'arpeggiated';
@@ -37,6 +43,11 @@ const CHORD_MEMBERS = ['root', '3rd', '5th', '7th'] as const;
 const BASS_OFFSETS = ['minor 2nd', 'major 2nd', 'minor 3rd', 'major 3rd', 'perfect 4th', 'tritone', 'perfect 5th', 'minor 6th', 'major 6th', 'minor 7th', 'major 7th'] as const;
 
 export const ANSWERS: Record<ExerciseKind, readonly string[]> = {
+  direction: ['up', 'down'],
+  motion: ['same note', 'different note'],
+  // "Step" is the distance between neighbouring scale notes; anything wider is a
+  // leap. Judged by size alone, with no name attached to it.
+  distance: ['a step', 'a leap'],
   'scale-degree': DIATONIC_DEGREES,
   interval: ['minor 2nd', 'major 2nd', 'minor 3rd', 'major 3rd', 'perfect 4th', 'tritone', 'perfect 5th', 'minor 6th', 'major 6th', 'minor 7th', 'major 7th', 'octave'],
   triad: TRIAD_QUALITIES,
@@ -99,6 +110,29 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
   // Indexed against the unrestricted list, because several generators use the
   // answer's position to look up a parallel table of intervals or structures.
   const answerIndex = Math.max(0, fullAnswersFor(config).indexOf(answer));
+  // ---- ground floor: two notes, one at a time, judged only against each other.
+  if (config.kind === 'direction' || config.kind === 'motion' || config.kind === 'distance') {
+    // A step is 1 or 2 semitones; a leap is 5 to 12. The gap between them is left
+    // empty on purpose, so the two categories never sit close enough to be a
+    // coin toss at this stage.
+    const size = config.kind === 'motion'
+      ? (answer === 'same note' ? 0 : 1 + Math.floor(random() * 11))
+      : config.kind === 'distance'
+        ? (answer === 'a step' ? 1 + Math.floor(random() * 2) : 5 + Math.floor(random() * 8))
+        : 2 + Math.floor(random() * 10);
+    // Direction is the answer for one drill and merely incidental for the others.
+    const rising = config.kind === 'direction' ? answer === 'up' : random() > .5;
+    const second = root + (rising ? size : -size);
+    const moved = size === 0 ? 'stayed where it was' : `moved ${rising ? 'up' : 'down'} ${size} semitone${size === 1 ? '' : 's'}`;
+    return {
+      kind: config.kind, root, answer, notes: [root, second], inversion: 0, melodic: true,
+      direction: rising ? 'ascending' : 'descending',
+      question: config.kind === 'direction' ? 'Did the second note go up or down?'
+        : config.kind === 'motion' ? 'Was the second note the same, or different?'
+        : 'Was that a step, or a leap?',
+      explanation: `The second note ${moved}.`,
+    };
+  }
   if (config.kind === 'scale-degree') {
     const steps = config.vocabulary === 'chromatic' ? CHROMATIC_STEPS : majorScale;
     return { kind: config.kind, root, answer, notes: [root + steps[answerIndex]], contextNotes: liftAboveMud(chord(root, 'major').map(note => note.midiNumber)), inversion: 0 };
@@ -205,7 +239,7 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
   return { kind: config.kind, ...sounded(root, voiced.map(note => note.midiNumber)), answer, inversion };
 }
 
-export const RECOGNITION_KINDS: readonly ExerciseKind[] = ['scale-degree', 'interval', 'triad', 'seventh', 'bass', 'tonal-center', 'mode', 'extension', 'altered', 'decomposition', 'slash-chord', 'delayed-comparison', 'multibar-memory'];
+export const RECOGNITION_KINDS: readonly ExerciseKind[] = ['direction', 'motion', 'distance', 'scale-degree', 'interval', 'triad', 'seventh', 'bass', 'tonal-center', 'mode', 'extension', 'altered', 'decomposition', 'slash-chord', 'delayed-comparison', 'multibar-memory'];
 
 /** `available` narrows the recommendation to the drills a section gate has opened. */
 export function recommendKind(attempts: { exercise: string; correct: boolean }[], available: readonly ExerciseKind[] = RECOGNITION_KINDS): ExerciseKind {

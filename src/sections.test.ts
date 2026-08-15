@@ -26,6 +26,11 @@ describe('section spine', () => {
     expect([...listed].sort()).toEqual([...ALL_EXERCISES].sort());
     expect(new Set(listed).size).toBe(listed.length);
   });
+  it('starts below named intervals, which already assume too much', () => {
+    // Naming an interval means holding two pitches and measuring between them.
+    // The opening section only asks whether the second note moved, and which way.
+    expect(SECTIONS[0].exercises).toEqual(['direction-recognition', 'motion-recognition', 'distance-recognition']);
+  });
   it('places an exercise in the section that owns it', () => {
     expect(sectionOf('interval-recognition')?.id).toBe('foundations');
     expect(sectionOf('transcription')?.id).toBe('transfer');
@@ -36,9 +41,9 @@ describe('section spine', () => {
 describe('gating', () => {
   it('opens only the first section to someone with no history', () => {
     const progress = sectionProgress([]);
-    expect(progress.filter(status => status.unlocked).map(status => status.section.id)).toEqual(['foundations']);
+    expect(progress.filter(status => status.unlocked).map(status => status.section.id)).toEqual([SECTIONS[0].id]);
     expect(progress.every(status => !status.cleared)).toBe(true);
-    expect(currentSection([]).section.id).toBe('foundations');
+    expect(currentSection([]).section.id).toBe(SECTIONS[0].id);
   });
   it('schedules nothing beyond the opening section until it is cleared', () => {
     expect(unlockedExercises([])).toEqual([...SECTIONS[0].exercises]);
