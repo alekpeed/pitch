@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { answersFor, generateStimulus, RECOGNITION_KINDS, recommendKind, type DrillConfig } from './training';
-import { ALTERED_STRUCTURES, EXTENSION_STRUCTURES, MODES, NOTE_NAMES, respectsLowIntervalLimit } from './theory';
+import { ALTERED_STRUCTURES, EXTENSION_STRUCTURES, MAJOR_SCALE, MODES, NOTE_NAMES, respectsLowIntervalLimit } from './theory';
 const config = (overrides: Partial<DrillConfig> = {}): DrillConfig => ({ kind: 'seventh', rootPool: 'all', inversions: true, melodic: false, register: 'middle', timbre: 'piano', ...overrides });
 
 describe('training engine', () => {
@@ -49,13 +49,24 @@ describe('training engine', () => {
       expect(stimulus.notes[0] - stimulus.root).toBe(chromatic.indexOf(stimulus.answer));
     }
   });
-  it('builds a tonal-center phrase that resolves to the answer but never opens on it', () => {
+  it('resolves a tonal-center phrase to its tonic without ever opening on it', () => {
     for (let seed = 0; seed < 20; seed += 1) {
       const stimulus = generateStimulus(seed, config({ kind: 'tonal-center' }));
-      expect(stimulus.phrase!.length).toBeGreaterThan(2);
-      expect(stimulus.answer).toBe(NOTE_NAMES[stimulus.root % 12]);
-      expect(stimulus.phrase!.at(-1)![0] % 12).toBe(stimulus.root % 12);
+      // The phrase, plus the single probe note that follows it.
+      expect(stimulus.phrase!.length).toBeGreaterThan(3);
+      const resolution = stimulus.phrase!.at(-2)!;
+      expect(resolution[0] % 12).toBe(stimulus.root % 12);
       expect(stimulus.phrase![0][0] % 12).not.toBe(stimulus.root % 12);
+    }
+  });
+  it('answers tonal-center with a degree against the heard tonic, never a letter name', () => {
+    const degrees = answersFor(config({ kind: 'tonal-center' }));
+    for (let seed = 0; seed < 30; seed += 1) {
+      const stimulus = generateStimulus(seed, config({ kind: 'tonal-center' }));
+      expect(degrees).toContain(stimulus.answer);
+      // The probe sits that many scale steps above the tonic the phrase landed on.
+      const tonic = stimulus.phrase!.at(-2)![0];
+      expect(stimulus.notes[0] - tonic).toBe(MAJOR_SCALE[degrees.indexOf(stimulus.answer)]);
     }
   });
   it('plays a mode as its own scale and names the characteristic degree', () => {
@@ -103,24 +114,34 @@ describe('training engine', () => {
       expect(stimulus.inversion).toBeLessThan(stimulus.notes.length);
     }
   });
-  it('asks decomposition for a real member and answers with that pitch', () => {
+  it('sounds the decomposition chord as context and probes one of its members', () => {
+    const members = answersFor(config({ kind: 'decomposition' }));
     for (let seed = 0; seed < 24; seed += 1) {
       const stimulus = generateStimulus(seed, config({ kind: 'decomposition' }));
-      expect(stimulus.question).toMatch(/Name the (root|3rd|5th|7th) of this chord\./);
-      expect(stimulus.notes.map(note => NOTE_NAMES[note % 12])).toContain(stimulus.answer);
+      expect(members).toContain(stimulus.answer);
+      // The chord is heard first, so the member is judged against it rather than named cold.
+      expect(stimulus.contextNotes).toHaveLength(4);
+      expect(stimulus.notes).toHaveLength(1);
+      expect(stimulus.contextNotes).toContain(stimulus.notes[0]);
+      expect(stimulus.contextNotes![members.indexOf(stimulus.answer)]).toBe(stimulus.notes[0]);
     }
   });
-  it('puts a displaced bass under the slash-chord triad and asks about one part at a time', () => {
-    const questions = new Set<string>();
+  it('answers a slash chord with the distance to its bass, never a letter name', () => {
+    const offsets = answersFor(config({ kind: 'slash-chord' }));
     for (let seed = 0; seed < 40; seed += 1) {
       const stimulus = generateStimulus(seed, config({ kind: 'slash-chord' }));
-      questions.add(stimulus.question!);
+      expect(offsets).toContain(stimulus.answer);
       // The bass is the lowest note and is not the triad root.
       expect(Math.min(...stimulus.notes)).toBe(stimulus.notes[0]);
       expect(stimulus.notes).toHaveLength(4);
-      expect(stimulus.explanation).toContain('/');
+      expect(stimulus.notes[1] - stimulus.notes[0]).toBe(offsets.indexOf(stimulus.answer) + 1);
     }
-    expect(questions.size).toBe(2);
+  });
+  it('never answers any recognition drill with a bare letter name', () => {
+    // Absolute pitch is not a skill the app teaches, so no answer grid may ask for one.
+    RECOGNITION_KINDS.forEach(kind => {
+      expect(answersFor(config({ kind }))).not.toEqual(expect.arrayContaining([...NOTE_NAMES]));
+    });
   });
   it('keeps every new chord drill clear of the low-interval limit', () => {
     for (const kind of ['extension', 'altered', 'decomposition', 'slash-chord'] as const)

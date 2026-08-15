@@ -8,12 +8,14 @@ import { attemptStore, sessionStore, type Confidence } from './storage';
 import { answersFor, generateStimulus, RECOGNITION_KINDS, recommendKind, type DrillConfig, type ExerciseKind } from './training';
 import { NOTE_NAMES, pitch } from './theory';
 import { NoteMap } from './NoteMap';
+import { playbackPlan, renderPlayback } from './playback';
 import { DiagnosticLab } from './DiagnosticLab';
 import { buildComparison, contrastCandidates, contrastConfig } from './contrast';
 import {
   applyProfile, currentStage, PROFILES, profileConfig, profileFor, profileProgressionIds, profileSpacings,
   profileStore, PRODUCTION_EXERCISES, stageProgress, TRANSFER_EXERCISES, VOICING_EXERCISES, type ProfileId,
 } from './curriculum';
+import { CLEAR_FRACTION, currentSection, SECTIONS, sectionOf, sectionProgress, unlockedExercises } from './sections';
 import { TextureLab } from './TextureLab';
 import { DataPanel } from './DataPanel';
 import { journal, noteStore, renderEntry, type PerceivedDifficulty } from './journal';
@@ -42,7 +44,7 @@ const title = (value: string) => value.replaceAll('-', ' ');
 
 type ProgressTab = 'overview' | 'skills' | 'journal' | 'ledger' | 'note';
 type SettingsTab = 'drill' | 'advanced' | 'export' | 'restore';
-type CurriculumTab = 'profiles' | 'stages';
+type CurriculumTab = 'sections' | 'profiles' | 'stages';
 
 /**
  * A drill that is still in the app. Attempts and probes recorded against a
@@ -88,7 +90,7 @@ export default function App() {
   const [navOpen, setNavOpen] = useState(false);
   const [progressTab, setProgressTab] = useState<ProgressTab>('overview');
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('drill');
-  const [curriculumTab, setCurriculumTab] = useState<CurriculumTab>('profiles');
+  const [curriculumTab, setCurriculumTab] = useState<CurriculumTab>('sections');
   const [draftNote, setDraftNote] = useState('');
   const [draftObservation, setDraftObservation] = useState('');
   const [draftPerceived, setDraftPerceived] = useState<PerceivedDifficulty>();
@@ -129,9 +131,17 @@ export default function App() {
   const activeSlot = plan[planIndex];
   const retentionDue = retentionStore.due().filter(probe => isLive(probe.exercise)).map(probe => probe.exercise);
   const states = skillStates({ attempts, retentionDue, pinned });
-  // The genre steers the order; it never removes anything, so an off-genre
-  // weakness is still scheduled at its own evidence-based priority.
-  const ranked = applyProfile(rankCatalog({ catalog: CATALOG, states, retentionDue, pinned }), profile);
+  // The section spine gates what may be scheduled at all: the section being
+  // worked on, plus everything already cleared. Without this the engine ranks
+  // the whole catalogue and practice becomes a free-for-all across material the
+  // foundations have not been laid for yet.
+  const sections = sectionProgress(states);
+  const sectionNow = currentSection(states);
+  const unlocked = unlockedExercises(states);
+  const availableKinds = DRILL_KINDS.filter(kind => unlocked.includes(`${kind}-recognition`));
+  // The genre steers the order within what is unlocked; it never removes
+  // anything, so an off-genre weakness is still scheduled at its own priority.
+  const ranked = applyProfile(rankCatalog({ catalog: CATALOG.filter(exercise => unlocked.includes(exercise)), states, retentionDue, pinned }), profile);
   const stages = profile ? stageProgress(profile, states) : [];
   const stageNow = profile ? currentStage(profile, states) : undefined;
   const contrastPairs = contrastCandidates(states.flatMap(state => state.confusions));
@@ -169,8 +179,10 @@ export default function App() {
           : { exercise: item.exercise, config: tuned, reason: item.reason };
       }),
       growth: growthTarget ? { exercise: growthTarget, config: adjustDrill(tunedConfig(growthTarget), 'raise'), reason: 'Targeted growth at raised difficulty' } : undefined,
-      production: PRODUCTION,
-      transfer: TRANSFER,
+      // Production and transfer are sections in their own right, so they only
+      // appear in a session once the spine has reached them.
+      production: PRODUCTION.filter(exercise => unlocked.includes(exercise)),
+      transfer: TRANSFER.filter(exercise => unlocked.includes(exercise)),
     });
     setPlan(slots); setPlanIndex(0);
     if (slots.length) openSlot(slots[0], 0);
@@ -239,18 +251,7 @@ export default function App() {
   const play = () => {
     if (replaysSpent) return;
     setReplays(value => value + 1);
-    if (stimulus.phrase) return void audio.playProgression(stimulus.phrase.map(notes => notes.map(pitch)), config.timbre, stimulus.gapSeconds);
-    if (stimulus.contextNotes) return void audio.playProgression([stimulus.contextNotes.map(pitch), stimulus.notes.map(pitch)], config.timbre);
-    const presentation = config.presentation ?? 'both';
-    const arpeggiated = presentation === 'arpeggiated';
-    const melodic = stimulus.melodic ?? (arpeggiated || (config.kind === 'interval' && config.melodic));
-    // Short exposure is a difficulty dimension: less time to decide, same chord.
-    const held = config.exposure === 'short' ? .28 : config.kind === 'interval' ? .55 : melodic ? .5 : 1.15;
-    if (config.rhythm === 'syncopated' && !melodic) return void audio.playRhythm(stimulus.notes.map(pitch), [0, .34, .82, 1.1], Math.min(held, .4), config.timbre);
-    // Only a real chord has a quality to spell out; two notes or one are already
-    // as separated as they can usefully be.
-    if (presentation === 'both' && !melodic && stimulus.notes.length >= 3) return void audio.blockThenArpeggio(stimulus.notes.map(pitch), held, config.timbre);
-    void audio.play(stimulus.notes.map(pitch), held, melodic, config.timbre);
+    renderPlayback(audio, playbackPlan(stimulus, config), config.timbre);
   };
   const accuracy = attempts.length ? Math.round(attempts.filter(item => item.correct).length / attempts.length * 100) : null;
   const skills = summarizeSkills(attempts);
@@ -310,7 +311,7 @@ export default function App() {
       </div>}
 
       {page === 'Daily' && <Screen>
-        <ScreenHead title="Daily" meta={`${retentionDue.length} probe${retentionDue.length === 1 ? '' : 's'} due`}/>
+        <ScreenHead title="Daily" meta={`Section ${sectionNow.index + 1} of ${SECTIONS.length} · ${retentionDue.length} probe${retentionDue.length === 1 ? '' : 's'} due`}/>
         <ScreenBody>
           {plan.length > 0 ? <>
             <p className="lede">Session in progress — {plan.length} items, built from retention that is due, current weaknesses, one growth target, production work and real-music transfer.</p>
@@ -324,7 +325,7 @@ export default function App() {
               <button className="ghost" onClick={() => { setPlan([]); setPlanIndex(0); }}>End session</button>
             </div>
           </> : <>
-            <p className="lede">Ranked by evidence: weakness, recurring confusions, retention debt, and conditions you have not generalized to yet.{profile && ` Ordering leans toward ${profile.name}.`} Nothing is locked.</p>
+            <p className="lede"><b>{sectionNow.section.name}</b> — {sectionNow.section.goal} {sectionNow.met.length} of {sectionNow.section.exercises.length} reliable; the next section opens at {Math.ceil(sectionNow.section.exercises.length * CLEAR_FRACTION)}.{profile && ` Ordering leans toward ${profile.name}.`}</p>
             <Pager items={ranked} label="skills" empty="Practice anything to start building evidence." row={item => <div className="row" key={item.exercise}>
               <b>{title(item.exercise)}</b>
               <button className={pinned.includes(item.exercise) ? 'pinned' : ''} onClick={() => setPinned(current => current.includes(item.exercise) ? current.filter(value => value !== item.exercise) : [...current, item.exercise])}>{pinned.includes(item.exercise) ? 'Pinned' : 'Pin'}</button>
@@ -345,7 +346,7 @@ export default function App() {
               <span>{title(config.kind)}</span><span className="picker-caret">{pickerOpen ? '▲' : '▾'}</span>
             </button>
             <span className="screen-meta">{attempts.length} attempts</span>
-            {pickerOpen && <div className="kind-picker">{DRILL_KINDS.map(kind => <button key={kind} className={config.kind === kind ? 'selected' : ''} onClick={() => { selectKind(kind); setPickerOpen(false); }}>{title(kind)}</button>)}</div>}
+            {pickerOpen && <div className="kind-picker">{availableKinds.map(kind => <button key={kind} className={config.kind === kind ? 'selected' : ''} onClick={() => { selectKind(kind); setPickerOpen(false); }}>{title(kind)}</button>)}</div>}
           </div>
 
           {!answer ? <>
@@ -445,9 +446,18 @@ export default function App() {
       {page === 'Singing' && <SingingLab sessionId={sessionId} onEvidence={() => setHistoryVersion(value => value + 1)}/>}
 
       {page === 'Curriculum' && <Screen>
-        <ScreenHead title="Curriculum" meta={profile ? `Stage ${stageNow!.index + 1} of ${profile.stages.length}` : 'Full catalog'}/>
+        <ScreenHead title="Curriculum" meta={`Section ${sectionNow.index + 1} of ${SECTIONS.length}`}/>
         <ScreenBody>
-          <Tabs value={curriculumTab} onChange={setCurriculumTab} options={[['profiles', 'Profiles'], ['stages', 'Stages']]}/>
+          <Tabs value={curriculumTab} onChange={setCurriculumTab} options={[['sections', 'Sections'], ['profiles', 'Profiles'], ['stages', 'Stages']]}/>
+          {curriculumTab === 'sections' && <>
+            <p className="lede">The order material opens in. A section clears once {Math.round(CLEAR_FRACTION * 100)}% of its drills are reliable — measured, not self-reported — and clearing it opens the next. Earlier sections stay open for review.</p>
+            <Pager items={sections} label="sections" row={status => <div key={status.section.id} className={`row ${status.cleared ? 'done' : status.current ? 'current' : ''}`}>
+              <div className="stage-head"><b>{status.index + 1}. {status.section.name}</b></div>
+              <span className={`pill ${status.cleared ? 'growth' : status.unlocked ? 'weakness' : 'retention'}`}>{status.cleared ? 'cleared' : status.unlocked ? `${status.met.length}/${status.section.exercises.length}` : 'locked'}</span>
+              <small>{status.section.goal}</small>
+              <div className="stage-skills" style={{ gridColumn: '1 / -1' }}>{status.section.exercises.map(exercise => <button key={exercise} className={status.met.includes(exercise) ? 'met' : ''} disabled={!status.unlocked} onClick={() => { const kind = kindOf(exercise); if (kind) return selectKind(kind); openExercise(exercise); }}>{title(exercise)}</button>)}</div>
+            </div>}/>
+          </>}
           {curriculumTab === 'profiles' && <>
             <p className="lede">A profile reorders practice toward the skills a style asks for, and sets the default sound, chord vocabulary and progressions. It never locks anything.</p>
             <Pager items={PROFILES} label="profiles" className="grid" row={item => <button key={item.id} className={`profile-card ${profileId === item.id ? 'selected' : ''}`} onClick={() => { const chosen = profileId === item.id ? undefined : item.id; setProfileId(chosen); profileStore.set(chosen); }}>
@@ -468,13 +478,17 @@ export default function App() {
       </Screen>}
 
       {page === 'Explore' && <Screen>
-        <ScreenHead title="Explore" meta="Nothing is locked"/>
+        <ScreenHead title="Explore" meta={`${availableKinds.length} of ${DRILL_KINDS.length} drills open`}/>
         <ScreenBody>
-          <Pager items={DRILL_KINDS} label="drills" className="grid" row={kind => <button className="profile-card" onClick={() => selectKind(kind)} key={kind}>
-            <b style={{ textTransform: 'capitalize' }}>{title(kind)}</b>
-            <span>Practice now →</span>
-          </button>}/>
-          <div className="actions"><button className="primary" onClick={() => selectKind(recommendKind(attempts))}>Practice recommended weak area</button></div>
+          <p className="lede">Everything your sections have opened, in any order you like. Locked drills are not hidden — they are listed so you can see what is coming, and they open as you clear the sections that lead to them.</p>
+          <Pager items={DRILL_KINDS} label="drills" className="grid" row={kind => {
+            const open = availableKinds.includes(kind);
+            return <button className={`profile-card ${open ? '' : 'locked'}`} disabled={!open} onClick={() => selectKind(kind)} key={kind}>
+              <b style={{ textTransform: 'capitalize' }}>{title(kind)}</b>
+              <span>{open ? 'Practice now →' : `Opens in ${sectionOf(`${kind}-recognition`)?.name ?? 'a later section'}`}</span>
+            </button>;
+          }}/>
+          <div className="actions"><button className="primary" disabled={!availableKinds.length} onClick={() => selectKind(recommendKind(attempts, availableKinds))}>Practice recommended weak area</button></div>
         </ScreenBody>
       </Screen>}
 

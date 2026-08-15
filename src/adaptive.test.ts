@@ -4,6 +4,7 @@ import {
   generalization, generalizationGap, interleave, masteryFor, skillPriority, skillStates, slotCounts,
   dashboardBucket, envelopeSummary, rankCatalog, reasonFor, weightedConfusions, type SessionSlot,
 } from './adaptive';
+import { SECTIONS } from './sections';
 import type { Attempt } from './storage';
 import type { DrillConfig } from './training';
 
@@ -189,31 +190,12 @@ describe('session assembly', () => {
     expect(assembleSession(full).find(slot => slot.purpose === 'retention')?.probeId).toBeTruthy();
   });
   it('returns nothing when there is no material at all', () => expect(assembleSession({ total: 20, ranked: [] })).toEqual([]));
-  it('groups exercises by phase to reduce screen transitions', () => {
-    const slots = assembleSession(full);
-    // Identify exercise phases based on exercise id.
-    const isVoicing = (ex: string) => ['voicing-spacing', 'upper-structure', 'voice-motion', 'inner-voice-melody', 'inner-voice-reproduction', 'voicing-change'].includes(ex);
-    const isProduction = (ex: string) => ['exact-voicing-copy', 'guide-tone-voice-leading', 'scale-degree-production', 'interval-production', 'harmonization', 'reharmonization', 'chord-tone-production', 'guide-tone-production', 'root-motion-production', 'call-response-melody', 'call-response-chord', 'functional-performance'].includes(ex);
-    const isTransfer = (ex: string) => ['transcribe-melody', 'transcribe-chords', 'transcription'].includes(ex);
-    const phaseOf = (ex: string) => isVoicing(ex) ? 'voicing' : isProduction(ex) ? 'production' : isTransfer(ex) ? 'transfer' : 'recognition';
-    const phases = slots.map(slot => phaseOf(slot.exercise));
-    // Phases should not interleave: once we leave recognition, we shouldn't return to it.
-    const firstPhase = new Map<string, number>();
-    const lastPhase = new Map<string, number>();
-    phases.forEach((phase, index) => {
-      if (!firstPhase.has(phase)) firstPhase.set(phase, index);
-      lastPhase.set(phase, index);
-    });
-    // Each phase should be contiguous: last occurrence of phase N should come before
-    // the first occurrence of phase N+1 (if both exist in the session).
-    const phaseOrder = ['recognition', 'voicing', 'production', 'transfer'];
-    for (let i = 0; i < phaseOrder.length - 1; i++) {
-      const currentPhaseExists = firstPhase.has(phaseOrder[i]);
-      const nextPhaseExists = firstPhase.has(phaseOrder[i + 1]);
-      if (currentPhaseExists && nextPhaseExists) {
-        expect(lastPhase.get(phaseOrder[i])!).toBeLessThan(firstPhase.get(phaseOrder[i + 1])!);
-      }
-    }
+  it('keeps each section contiguous so a session does not flicker between screens', () => {
+    const sections = assembleSession(full).map(slot => SECTIONS.findIndex(section => section.exercises.includes(slot.exercise)));
+    // Every section appears as exactly one unbroken run, in curriculum order.
+    const runs = sections.filter((section, index) => index === 0 || section !== sections[index - 1]);
+    expect(runs).toEqual([...runs].sort((a, b) => a - b));
+    expect(new Set(runs).size).toBe(runs.length);
   });
   it('uses the documented default mix', () => expect(DEFAULT_MIX).toEqual({ retention: .2, weakness: .35, growth: .2, production: .15, transfer: .1 }));
 });

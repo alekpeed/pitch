@@ -22,26 +22,37 @@ export type Timbre = 'piano' | 'rhodes' | 'organ' | 'guitar' | 'strings' | 'pad'
 export interface DrillConfig { kind: ExerciseKind; rootPool: 'all' | 'white'; inversions: boolean; melodic: boolean; register: Register; timbre: Timbre; vocabulary?: Vocabulary; presentation?: Presentation; exposure?: Exposure; rhythm?: Rhythm; memoryDelay?: MemoryDelay; deadline?: Deadline; blind?: boolean; only?: readonly string[]; confidence?: boolean }
 export interface Stimulus { kind: ExerciseKind; root: number; answer: string; notes: number[]; inversion: number; contextNotes?: number[]; direction?: 'ascending' | 'descending'; quality?: string; phrase?: number[][]; melodic?: boolean; explanation?: string; question?: string; replayLimit?: number; gapSeconds?: number }
 
+/**
+ * Every answer vocabulary in this file is deliberately relative — an interval, a
+ * scale degree, a chord member, a quality. None of them is an absolute letter
+ * name, because naming a pitch with no reference sounding is a test of absolute
+ * pitch rather than of ear training, and absolute pitch is not a skill this app
+ * teaches or assumes.
+ */
+const DIATONIC_DEGREES = ['1 · tonic', '2 · supertonic', '3 · mediant', '4 · subdominant', '5 · dominant', '6 · submediant', '7 · leading tone'] as const;
+// Indexed into the chord's own structure, so the "3rd" is whatever third that
+// quality actually has rather than a fixed interval.
+const CHORD_MEMBERS = ['root', '3rd', '5th', '7th'] as const;
+/** How far the bass sits under the upper triad's root, named as an interval. */
+const BASS_OFFSETS = ['minor 2nd', 'major 2nd', 'minor 3rd', 'major 3rd', 'perfect 4th', 'tritone', 'perfect 5th', 'minor 6th', 'major 6th', 'minor 7th', 'major 7th'] as const;
+
 export const ANSWERS: Record<ExerciseKind, readonly string[]> = {
-  'scale-degree': ['1 · tonic', '2 · supertonic', '3 · mediant', '4 · subdominant', '5 · dominant', '6 · submediant', '7 · leading tone'],
+  'scale-degree': DIATONIC_DEGREES,
   interval: ['minor 2nd', 'major 2nd', 'minor 3rd', 'major 3rd', 'perfect 4th', 'tritone', 'perfect 5th', 'minor 6th', 'major 6th', 'minor 7th', 'major 7th', 'octave'],
   triad: TRIAD_QUALITIES,
   seventh: SEVENTH_QUALITIES,
   bass: ['root in bass', 'third in bass', 'fifth in bass'],
-  'tonal-center': NOTE_NAMES,
   mode: MODE_NAMES,
+  // The phrase itself establishes the key, so the degree is read against a tonic
+  // that was heard rather than against a letter name that has to be known.
+  'tonal-center': DIATONIC_DEGREES,
   extension: EXTENSION_QUALITIES,
   altered: ALTERED_QUALITIES,
-  // Decomposition and slash chords both answer with a note name, so one grid serves both.
-  decomposition: NOTE_NAMES,
-  'slash-chord': NOTE_NAMES,
+  decomposition: CHORD_MEMBERS,
+  'slash-chord': BASS_OFFSETS,
   'delayed-comparison': ['identical', 'quality changed', 'root changed', 'inversion changed'],
   'multibar-memory': PROGRESSIONS.map(template => template.chords.map(item => item.roman).join(' \u2013 '))
 };
-
-// Indexed into the chord's own structure, so the "3rd" is whatever third that
-// quality actually has rather than a fixed interval.
-const CHORD_MEMBERS = ['root', '3rd', '5th', '7th'] as const;
 
 /** Scale-degree vocabulary widens to all twelve degrees as difficulty rises. */
 function fullAnswersFor(config: DrillConfig): readonly string[] {
@@ -93,10 +104,18 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
     return { kind: config.kind, root, answer, notes: [root + steps[answerIndex]], contextNotes: liftAboveMud(chord(root, 'major').map(note => note.midiNumber)), inversion: 0 };
   }
   if (config.kind === 'tonal-center') {
+    // The phrase establishes a key; a single note then follows. Answering means
+    // holding that tonic in the ear and placing the note against it — the same
+    // skill as before, but read as a degree rather than as a letter name, so no
+    // absolute pitch is involved.
     const template = tonalPhrases[Math.floor(random() * tonalPhrases.length)];
-    const tonic = root;
-    const phrase = template.map(offset => liftAboveMud(chord(tonic + offset, 'major').map(note => note.midiNumber)));
-    return { kind: config.kind, root: tonic, answer: NOTE_NAMES[tonic % 12], notes: phrase.at(-1)!, phrase, inversion: 0, explanation: `The phrase resolved to ${NOTE_NAMES[tonic % 12]}.` };
+    const phrase = template.map(offset => liftAboveMud(chord(root + offset, 'major').map(note => note.midiNumber)));
+    const probe = phrase.at(-1)![0] + majorScale[answerIndex];
+    return {
+      kind: config.kind, root, answer, notes: [probe], phrase: [...phrase, [probe]], inversion: 0,
+      question: 'Where did that last note land in the key the phrase set up?',
+      explanation: `The phrase resolved to its tonic, and the note after it was ${answer}.`,
+    };
   }
   if (config.kind === 'mode') {
     const name = MODE_NAMES[answerIndex];
@@ -121,34 +140,32 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
     return { kind: config.kind, ...sounded(root, voiced), answer, inversion: 0, quality: answer, explanation: `${NOTE_NAMES[root % 12]}${answer} \u2014 ${structure.length} voices.` };
   }
   if (config.kind === 'decomposition') {
+    // The chord sounds, then one of its notes on its own. Naming which member
+    // that note was is a relative judgement inside the chord just heard; the
+    // older form asked for its letter name, which needed absolute pitch.
     const quality = SEVENTH_QUALITIES[Math.floor(random() * SEVENTH_QUALITIES.length)];
     const voiced = seventhChord(root, quality);
-    const memberIndex = Math.floor(random() * CHORD_MEMBERS.length);
     const heard = sounded(root, voiced.map(note => note.midiNumber));
-    const shift = heard.root - root;
-    const target = voiced[memberIndex].midiNumber + shift;
+    const target = voiced[answerIndex].midiNumber + (heard.root - root);
     return {
-      kind: config.kind, ...heard, answer: NOTE_NAMES[target % 12], inversion: 0, quality,
-      question: `Name the ${CHORD_MEMBERS[memberIndex]} of this chord.`,
-      explanation: `${NOTE_NAMES[heard.root % 12]} ${quality} \u2014 its ${CHORD_MEMBERS[memberIndex]} is ${NOTE_NAMES[target % 12]}.`,
+      kind: config.kind, root: heard.root, notes: [target], contextNotes: heard.notes, answer, inversion: 0, quality,
+      question: 'Which member of that chord was the note after it?',
+      explanation: `The chord was a ${quality}, and the note that followed was its ${answer}.`,
     };
   }
   if (config.kind === 'slash-chord') {
     const quality = triadQualities[Math.floor(random() * triadQualities.length)];
     // The bass is displaced from the triad root, and may be outside the triad
     // entirely, which is what separates a slash chord from a plain inversion.
-    const bass = root - (1 + Math.floor(random() * 11));
+    // The distance between the two is what is asked for: naming either pitch
+    // outright would have required absolute pitch.
+    const bass = root - (answerIndex + 1);
     const voiced = [bass, ...chord(root, quality).map(note => note.midiNumber)];
     const heard = sounded(bass, voiced);
-    const shift = heard.root - bass;
-    const askBass = random() > .5;
-    const upperRoot = root + shift;
-    const label = `${NOTE_NAMES[upperRoot % 12]} ${quality} / ${NOTE_NAMES[(bass + shift) % 12]}`;
     return {
-      kind: config.kind, root: heard.root, notes: heard.notes, inversion: 0, quality,
-      answer: NOTE_NAMES[(askBass ? bass + shift : upperRoot) % 12],
-      question: askBass ? 'Name the bass note.' : 'Name the root of the upper triad.',
-      explanation: `${label} \u2014 upper triad and bass are named independently.`,
+      kind: config.kind, root: heard.root, notes: heard.notes, inversion: 0, quality, answer,
+      question: 'How far below the upper triad is the bass?',
+      explanation: `A ${quality} triad with its bass a ${answer} below the triad's root.`,
     };
   }
   if (config.kind === 'delayed-comparison') {
@@ -190,7 +207,8 @@ export function generateStimulus(seed: number, config: DrillConfig): Stimulus {
 
 export const RECOGNITION_KINDS: readonly ExerciseKind[] = ['scale-degree', 'interval', 'triad', 'seventh', 'bass', 'tonal-center', 'mode', 'extension', 'altered', 'decomposition', 'slash-chord', 'delayed-comparison', 'multibar-memory'];
 
-export function recommendKind(attempts: { exercise: string; correct: boolean }[]): ExerciseKind {
-  const kinds: ExerciseKind[] = [...RECOGNITION_KINDS];
+/** `available` narrows the recommendation to the drills a section gate has opened. */
+export function recommendKind(attempts: { exercise: string; correct: boolean }[], available: readonly ExerciseKind[] = RECOGNITION_KINDS): ExerciseKind {
+  const kinds: ExerciseKind[] = available.length ? [...available] : [...RECOGNITION_KINDS];
   return kinds.map(kind => { const relevant = attempts.filter(item => item.exercise === `${kind}-recognition`).slice(-20); return { kind, score: relevant.length ? relevant.filter(item => item.correct).length / relevant.length : -1 }; }).sort((a, b) => a.score - b.score)[0].kind;
 }

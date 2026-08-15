@@ -5,8 +5,8 @@ import {
   currentProbe, diagnosticComplete, diagnosticEstimate, diagnosticProgress, diagnosticStore,
   recordDiagnostic, startDiagnostic, type DiagnosticState,
 } from './diagnostic';
+import { playbackPlan, renderPlayback } from './playback';
 import { attemptStore } from './storage';
-import { pitch } from './theory';
 import { answersFor, generateStimulus, RECOGNITION_KINDS } from './training';
 import { Pager, Screen, ScreenBody, ScreenHead } from './ui';
 import { titleCasable } from './display';
@@ -42,6 +42,12 @@ export function DiagnosticLab({ sessionId, onEvidence }: { sessionId: string; on
     onEvidence();
   }
 
+  /** The same decision the Practice screen makes — see playback.ts for why it is shared. */
+  function play() {
+    if (!probe || !stimulus) return;
+    renderPlayback(audio, playbackPlan(stimulus, probe.config), probe.config.timbre);
+  }
+
   const progress = state ? diagnosticProgress(state) : undefined;
   const previous = diagnosticStore.latest();
   const estimates = finished && state ? diagnosticEstimate(state) : [];
@@ -65,7 +71,7 @@ export function DiagnosticLab({ sessionId, onEvidence }: { sessionId: string; on
 
       {state && probe && stimulus && <div className={`drill ${titleCasable(answersFor(probe.config)) ? 'caps' : ''}`}>
         <div className="prompt">
-          <button className="listen" aria-label="Play prompt" onClick={() => { if (stimulus.phrase) void audio.playProgression(stimulus.phrase.map(notes => notes.map(pitch)), probe.config.timbre, stimulus.gapSeconds); else void audio.play(stimulus.notes.map(pitch), stimulus.melodic ? .5 : 1.15, stimulus.melodic ?? false, probe.config.timbre); }}>▶</button>
+          <button className="listen" aria-label="Play prompt" onClick={play}>▶</button>
           <span className="eyebrow">{probe.exercise.replaceAll('-', ' ')} · level {probe.level} of {MAX_DIFFICULTY_LEVEL}</span>
           <h2>{stimulus.question ?? 'Listen, then choose'}</h2>
           <p className="hint">No feedback until the end — this is measurement, not practice.</p>

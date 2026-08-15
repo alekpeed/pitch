@@ -1,3 +1,4 @@
+import { SECTIONS } from './sections';
 import type { Attempt } from './storage';
 import type { DrillConfig } from './training';
 
@@ -292,54 +293,44 @@ export function assembleSession(input: AssemblyInput): SessionSlot[] {
 }
 
 /**
- * Phases group related exercises so a session has structure: recognition drills,
- * then voicing/texture work, then production, then transfer. This reduces screen
- * transitions from 11+ to 2–3 and makes sessions feel more coherent.
+ * Orders a session by section, then varies purpose inside each one.
+ *
+ * Ordering purely by purpose produced a session that jumped between unrelated
+ * exercise types on every item — and because different types live on different
+ * screens, that read as the app flickering between pages rather than as useful
+ * variety. Grouping by section keeps a run of work on one screen and in one
+ * frame of mind, while the interleaving within each section still stops the
+ * next prompt from being predictable.
+ *
+ * The section order is the curriculum's, not a second list kept in step by hand.
  */
 export function interleave(slots: SessionSlot[]): SessionSlot[] {
-  // Identify which exercises belong to which phase based on the exercise id.
-  const isVoicing = (ex: string) => ['voicing-spacing', 'upper-structure', 'voice-motion', 'inner-voice-melody', 'inner-voice-reproduction', 'voicing-change'].includes(ex);
-  const isProduction = (ex: string) => ['exact-voicing-copy', 'guide-tone-voice-leading', 'scale-degree-production', 'interval-production', 'harmonization', 'reharmonization', 'chord-tone-production', 'guide-tone-production', 'root-motion-production', 'call-response-melody', 'call-response-chord', 'functional-performance'].includes(ex);
-  const isTransfer = (ex: string) => ['transcribe-melody', 'transcribe-chords', 'transcription'].includes(ex);
-  const isHarmony = (ex: string) => ex.startsWith('harmony-');
-
-  // Sort slots into phases: recognition, voicing, production, transfer.
-  const recognition: SessionSlot[] = [];
-  const voicing: SessionSlot[] = [];
-  const production: SessionSlot[] = [];
-  const transfer: SessionSlot[] = [];
-
+  const groups = new Map<number, SessionSlot[]>();
   slots.forEach(slot => {
-    if (isVoicing(slot.exercise)) voicing.push(slot);
-    else if (isProduction(slot.exercise)) production.push(slot);
-    else if (isTransfer(slot.exercise)) transfer.push(slot);
-    else recognition.push(slot);
+    // Anything outside the spine sorts last rather than being dropped.
+    const at = SECTIONS.findIndex(section => section.exercises.includes(slot.exercise));
+    const key = at < 0 ? SECTIONS.length : at;
+    groups.set(key, [...(groups.get(key) ?? []), slot]);
   });
+  return [...groups.keys()].sort((a, b) => a - b).flatMap(key => varyPurpose(groups.get(key)!));
+}
 
-  // Within each phase, interleave by purpose to keep variety within the phase,
-  // but avoid repeating the same exercise consecutively.
-  const interleavePhase = (phase: SessionSlot[]): SessionSlot[] => {
-    if (!phase.length) return [];
-    const purposeGroups = new Map<SlotPurpose, SessionSlot[]>();
-    phase.forEach(slot => purposeGroups.set(slot.purpose, [...(purposeGroups.get(slot.purpose) ?? []), slot]));
-    const ordered: SessionSlot[] = [];
-    while (ordered.length < phase.length) {
-      const previous = ordered.at(-1);
-      const candidates = [...purposeGroups.values()].filter(items => items.length).sort((a, b) => b.length - a.length);
-      const group = candidates.find(items => items[0].purpose !== previous?.purpose) ?? candidates[0];
-      const index = Math.max(0, group.findIndex(item => item.exercise !== previous?.exercise));
-      ordered.push(...group.splice(index, 1));
-    }
-    return ordered;
-  };
-
-  // Assemble phases in order, retaining the strongest priority items first within each.
-  return [
-    ...interleavePhase(recognition),
-    ...interleavePhase(voicing),
-    ...interleavePhase(production),
-    ...interleavePhase(transfer),
-  ];
+/** Spreads purposes within one section, avoiding back-to-back repeats of an exercise. */
+function varyPurpose(slots: SessionSlot[]): SessionSlot[] {
+  const groups = new Map<SlotPurpose, SessionSlot[]>();
+  slots.forEach(slot => groups.set(slot.purpose, [...(groups.get(slot.purpose) ?? []), slot]));
+  const ordered: SessionSlot[] = [];
+  while (ordered.length < slots.length) {
+    const previous = ordered.at(-1);
+    // Draining the largest group first spreads purposes evenly instead of
+    // front-loading every production and transfer item.
+    const candidates = [...groups.values()].filter(items => items.length).sort((a, b) => b.length - a.length);
+    const group = candidates.find(items => items[0].purpose !== previous?.purpose) ?? candidates[0];
+    // Within the chosen purpose, still avoid repeating the previous exercise.
+    const index = Math.max(0, group.findIndex(item => item.exercise !== previous?.exercise));
+    ordered.push(...group.splice(index, 1));
+  }
+  return ordered;
 }
 
 /* --------------------------------------------------------- full skill state */
