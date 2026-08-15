@@ -129,6 +129,15 @@ export default function App() {
   }, [timerActive, deadlineMs, startedAt]);
 
   const activeSlot = plan[planIndex];
+  /**
+   * The session controls belong to the screen the current item is actually on.
+   * A plan outlives navigation on purpose — Daily offers to resume it — but
+   * leaving mid-session used to carry the "3 of 20 · Voice Motion" bar onto
+   * whatever page you went to, so an unrelated screen looked like it was part
+   * of the session and its prompts looked like session items.
+   */
+  const slotPage = activeSlot && (kindOf(activeSlot.exercise) ? 'Practice' : pageFor(activeSlot.exercise));
+  const inSession = plan.length > 0 && Boolean(activeSlot) && page === slotPage;
   const retentionDue = retentionStore.due().filter(probe => isLive(probe.exercise)).map(probe => probe.exercise);
   const states = skillStates({ attempts, retentionDue, pinned });
   // The section spine gates what may be scheduled at all: the section being
@@ -300,12 +309,12 @@ export default function App() {
 
     <main>
       <div className="topbar">
-        <b>{plan.length ? `${planIndex + 1} of ${plan.length} · ${page}` : page}</b>
+        <b>{inSession ? `${planIndex + 1} of ${plan.length} · ${page}` : page}</b>
         <button className="menu" onClick={() => setNavOpen(true)}>Menu ▾</button>
       </div>
 
-      {plan.length > 0 && activeSlot && <div className="topbar">
-        <b>{title(activeSlot.exercise)}</b>
+      {inSession && <div className="topbar">
+        <b>{title(activeSlot!.exercise)}</b>
         <button className="menu" onClick={advancePlan}>{planIndex + 1 >= plan.length ? 'Finish' : 'Skip'}</button>
         <button className="menu" onClick={() => { setPlan([]); setPlanIndex(0); setPage('Daily'); }}>End</button>
       </div>}
@@ -394,7 +403,7 @@ export default function App() {
             </div>
             <div className="action-bar">
               <b>{answer === 'timed out' ? 'Out of time' : answer === stimulus.answer ? 'Correct' : `Was ${stimulus.answer}`}</b>
-              <button onClick={() => plan.length ? advancePlan() : next()}>{plan.length ? (planIndex + 1 >= plan.length ? 'Finish session →' : 'Next item →') : 'Next prompt →'}</button>
+              <button onClick={() => inSession ? advancePlan() : next()}>{inSession ? (planIndex + 1 >= plan.length ? 'Finish session →' : 'Next item →') : 'Next prompt →'}</button>
             </div>
           </>}
         </div>

@@ -4,7 +4,7 @@ import {
   currentProbe, diagnosticComplete, diagnosticEstimate, diagnosticProgress, diagnosticStore,
   recordDiagnostic, startDiagnostic, type DiagnosticState,
 } from './diagnostic';
-import type { ExerciseKind } from './training';
+import { RECOGNITION_KINDS, type ExerciseKind } from './training';
 
 const KINDS: ExerciseKind[] = ['triad', 'seventh', 'interval'];
 /** Answers every probe as a user whose true ceiling is `ceiling`. */
@@ -45,6 +45,16 @@ describe('diagnostic staircase', () => {
     const seen: string[] = [];
     for (let step = 0; step < 3; step += 1) { seen.push(currentProbe(state)!.exercise); state = recordDiagnostic(state, true); }
     expect(new Set(seen).size).toBe(3);
+  });
+  it('opens every skill on an answer grid the person can actually reason about', () => {
+    // The regression this guards: the opening probe landed on the rung that
+    // widens scale degrees to all twelve chromatic, so a cold assessment began
+    // on the hardest vocabulary the skill has.
+    const state = startDiagnostic(RECOGNITION_KINDS);
+    state.brackets.forEach(bracket => {
+      const probe = configAtLevel(bracket.exercise, bracket.level);
+      expect(probe.vocabulary ?? 'diatonic').toBe('diatonic');
+    });
   });
   it('climbs quickly for a strong user instead of walking up one step at a time', () => {
     let state = startDiagnostic(['triad'], 6);

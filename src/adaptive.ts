@@ -175,10 +175,14 @@ type LadderKey = 'rootPool' | 'register' | 'inversions' | 'timbre' | 'melodic' |
 const ladders: { key: LadderKey; values: readonly unknown[] }[] = [
   { key: 'rootPool', values: ['white', 'all'] },
   { key: 'inversions', values: [false, true] },
-  { key: 'vocabulary', values: ['diatonic', 'chromatic'] },
   { key: 'presentation', values: ['both', 'block', 'arpeggiated'] },
   { key: 'register', values: ['middle', 'high', 'low', 'random'] },
   { key: 'timbre', values: ['piano', 'rhodes', 'guitar', 'strings', 'organ', 'pad'] },
+  // Widening the answer grid from seven degrees to twelve is a jump in kind,
+  // not just in conditions — it changes what is being asked rather than how it
+  // sounds. Ordered after the condition ladders so it cannot land on the third
+  // rung, which is where a cold diagnostic opens.
+  { key: 'vocabulary', values: ['diatonic', 'chromatic'] },
   { key: 'rhythm', values: ['steady', 'syncopated'] },
   { key: 'exposure', values: ['sustained', 'short'] },
   { key: 'memoryDelay', values: ['none', 'short', 'long'] },
