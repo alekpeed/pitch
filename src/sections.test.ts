@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { skillStates, type SkillState } from './adaptive';
 import { ALL_EXERCISES } from './curriculum';
-import { CLEAR_FRACTION, currentSection, SECTIONS, sectionOf, sectionProgress, unlockedExercises } from './sections';
+import { placementDay } from './path';
+import { CLEAR_FRACTION, currentSection, PROVISIONAL_LEVEL, SECTIONS, sectionOf, sectionProgress, unlockedExercises } from './sections';
 import type { Attempt } from './storage';
 
 const NOW = Date.parse('2026-03-01T00:00:00.000Z');
@@ -90,5 +91,56 @@ describe('gating', () => {
     expect(sectionProgress(states).every(status => status.cleared)).toBe(true);
     expect(currentSection(states).section.id).toBe(SECTIONS.at(-1)!.id);
     expect(unlockedExercises(states)).toEqual(expect.arrayContaining([...ALL_EXERCISES]));
+  });
+});
+
+describe('diagnostic placement', () => {
+  /** A diagnostic that demonstrated every drill in the given sections. */
+  const diagnosed = (...indexes: number[]) => Object.fromEntries(
+    indexes.flatMap(index => SECTIONS[index].exercises).map(exercise => [exercise.replace(/-recognition$/, ''), PROVISIONAL_LEVEL]),
+  );
+
+  it('changes nothing without a diagnostic', () => {
+    expect(sectionProgress([]).some(status => status.cleared)).toBe(false);
+    expect(placementDay([])).toBe(1);
+  });
+  it('clears a section the diagnostic demonstrated, and marks it as placed', () => {
+    const progress = sectionProgress([], diagnosed(0));
+    expect(progress[0]).toMatchObject({ cleared: true, provisional: true });
+    expect(progress[0].assumed).toEqual([...SECTIONS[0].exercises]);
+    expect(progress[1].unlocked).toBe(true);
+  });
+  it('skips the learner past what they already have', () => {
+    expect(placementDay([], diagnosed(0, 1, 2))).toBeGreaterThan(placementDay([], diagnosed(0)));
+    expect(placementDay([], diagnosed(0))).toBeGreaterThan(1);
+  });
+  it('will not skip a gap it has no evidence for', () => {
+    // Demonstrating a later section while an earlier one is untested must not
+    // start the learner past the hole; the ladder is a sequence.
+    expect(placementDay([], diagnosed(2))).toBe(1);
+  });
+  it('does not count a level below the demonstrated bar', () => {
+    const weak = Object.fromEntries(SECTIONS[0].exercises.map(exercise => [exercise.replace(/-recognition$/, ''), PROVISIONAL_LEVEL - 1]));
+    expect(sectionProgress([], weak)[0].cleared).toBe(false);
+  });
+  it('never marks a genuinely earned section as provisional', () => {
+    const progress = sectionProgress(statesFor(clearSection(0)), diagnosed(0));
+    expect(progress[0]).toMatchObject({ cleared: true, provisional: false });
+    expect(progress[0].assumed).toEqual([]);
+  });
+  it('spends the credit once the exercise has really been practised', () => {
+    // Six poor attempts is thin, but it is no longer nothing — and practice
+    // that disagrees with the diagnostic must win.
+    const poor = SECTIONS[0].exercises.flatMap(exercise =>
+      Array.from({ length: 8 }, () => attempt(exercise, { correct: false, response: 'wrong' })));
+    const progress = sectionProgress(statesFor(poor), diagnosed(0));
+    expect(progress[0].cleared).toBe(false);
+    expect(progress[1].unlocked).toBe(false);
+  });
+  it('moves the learner back when placement is contradicted', () => {
+    const poor = SECTIONS[0].exercises.flatMap(exercise =>
+      Array.from({ length: 8 }, () => attempt(exercise, { correct: false, response: 'wrong' })));
+    expect(placementDay([], diagnosed(0))).toBeGreaterThan(1);
+    expect(placementDay(statesFor(poor), diagnosed(0))).toBe(1);
   });
 });

@@ -93,12 +93,35 @@ const MET: ReadonlySet<string> = new Set(['Reliable', 'Automatic', 'Transferred'
  */
 export const CLEAR_FRACTION = .75;
 
+/**
+ * The diagnostic level at which a skill counts as already demonstrated.
+ *
+ * This is the level the assessment opens on, so reaching it means the probe at
+ * a moderate difficulty was answered rather than missed. It is a far weaker
+ * signal than `MET` — five branching questions, not twelve reps across varied
+ * conditions — which is exactly why what it buys is provisional.
+ */
+export const PROVISIONAL_LEVEL = 3;
+/**
+ * Real attempts below this count as too thin to overrule a diagnostic. Above it,
+ * the diagnostic stops being consulted for that exercise at all: having actually
+ * practised something is always better evidence than having been assessed on it.
+ */
+const THIN_EVIDENCE = 6;
+
+/** Diagnostic estimates are keyed by drill kind; sections name the exercise id. */
+const kindOf = (exercise: string) => exercise.replace(/-recognition$/, '');
+
 export interface SectionStatus {
   section: Section; index: number;
   met: string[]; outstanding: string[];
+  /** Counted as met on diagnostic credit rather than practice. Subset of `met`. */
+  assumed: string[];
   /** Cleared exercises over total: the section's score. */
   score: number;
   cleared: boolean;
+  /** Cleared, but resting on diagnostic credit that practice has not yet confirmed. */
+  provisional: boolean;
   unlocked: boolean;
   /** The section being worked on now — the first that is unlocked but not cleared. */
   current: boolean;
@@ -107,13 +130,29 @@ export interface SectionStatus {
 /**
  * Section standing, in order. A section unlocks when the one before it clears,
  * so exactly one uncleared section is ever open: the frontier.
+ *
+ * `diagnostic` maps drill kind to the level that assessment demonstrated. It
+ * lets someone who already has an ear skip material rather than grinding
+ * through "did the second note go up" to reach it — but only as credit, and
+ * only until real practice has something to say. Because the day ladder folds
+ * earlier sections back in as review, anything skipped this way keeps coming
+ * round, and the moment it has been genuinely practised the credit is spent and
+ * performance stands on its own.
  */
-export function sectionProgress(states: readonly SkillState[]): SectionStatus[] {
-  const masteryOf = (exercise: string) => states.find(state => state.exercise === exercise)?.mastery ?? '';
+export function sectionProgress(states: readonly SkillState[], diagnostic?: Record<string, number>): SectionStatus[] {
+  const stateOf = (exercise: string) => states.find(state => state.exercise === exercise);
+  /** Demonstrated by practice — the real bar, and the only one that is permanent. */
+  const demonstrated = (exercise: string) => MET.has(stateOf(exercise)?.mastery ?? '');
+  /** Credited by the diagnostic, and only while practice has not weighed in. */
+  const credited = (exercise: string) =>
+    (stateOf(exercise)?.attempts ?? 0) < THIN_EVIDENCE
+    && (diagnostic?.[kindOf(exercise)] ?? -1) >= PROVISIONAL_LEVEL;
+
   let previousCleared = true;
   let frontierTaken = false;
   return SECTIONS.map((section, index) => {
-    const met = section.exercises.filter(exercise => MET.has(masteryOf(exercise)));
+    const met = section.exercises.filter(exercise => demonstrated(exercise) || credited(exercise));
+    const assumed = met.filter(exercise => !demonstrated(exercise));
     const score = section.exercises.length ? met.length / section.exercises.length : 1;
     const unlocked = previousCleared;
     const cleared = unlocked && score >= CLEAR_FRACTION;
@@ -121,16 +160,17 @@ export function sectionProgress(states: readonly SkillState[]): SectionStatus[] 
     if (current) frontierTaken = true;
     previousCleared = cleared;
     return {
-      section, index, met: [...met],
+      section, index, met: [...met], assumed,
       outstanding: section.exercises.filter(exercise => !met.includes(exercise)),
-      score, cleared, unlocked, current,
+      // Only a section that would not have cleared on practice alone is provisional.
+      score, cleared, provisional: cleared && assumed.length > 0, unlocked, current,
     };
   });
 }
 
 /** The section being worked on, or the last one once the whole spine is cleared. */
-export function currentSection(states: readonly SkillState[]): SectionStatus {
-  const progress = sectionProgress(states);
+export function currentSection(states: readonly SkillState[], diagnostic?: Record<string, number>): SectionStatus {
+  const progress = sectionProgress(states, diagnostic);
   return progress.find(status => status.current) ?? progress[progress.length - 1];
 }
 
@@ -139,8 +179,8 @@ export function currentSection(states: readonly SkillState[]): SectionStatus {
  * cleared, so earlier material stays available for retention and review instead
  * of disappearing the moment it is passed.
  */
-export function unlockedExercises(states: readonly SkillState[]): string[] {
-  return sectionProgress(states).filter(status => status.unlocked).flatMap(status => [...status.section.exercises]);
+export function unlockedExercises(states: readonly SkillState[], diagnostic?: Record<string, number>): string[] {
+  return sectionProgress(states, diagnostic).filter(status => status.unlocked).flatMap(status => [...status.section.exercises]);
 }
 
 /** Which section an exercise belongs to, for labelling it in a list. */

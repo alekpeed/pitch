@@ -154,9 +154,12 @@ export default function App() {
   // worked on, plus everything already cleared. Without this the engine ranks
   // the whole catalogue and practice becomes a free-for-all across material the
   // foundations have not been laid for yet.
-  const sections = sectionProgress(states);
-  const sectionNow = currentSection(states);
-  const unlocked = unlockedExercises(states);
+  // A completed diagnostic is credit toward sections practice has not reached
+  // yet, so an existing ear does not have to be re-earned from the ground up.
+  const diagnosedLevels = diagnosticStore.latest()?.levels;
+  const sections = sectionProgress(states, diagnosedLevels);
+  const sectionNow = currentSection(states, diagnosedLevels);
+  const unlocked = unlockedExercises(states, diagnosedLevels);
   const availableKinds = DRILL_KINDS.filter(kind => unlocked.includes(`${kind}-recognition`));
   // The genre steers the order within what is unlocked; it never removes
   // anything, so an off-genre weakness is still scheduled at its own priority.
@@ -188,7 +191,9 @@ export default function App() {
    */
   const dayRecords = dayStore.all();
   const standingNow = standing(dayRecords);
-  const placed = Math.max(placementDay(states), dayFor(standingNow.completedDays));
+  const placed = Math.max(placementDay(states, diagnosedLevels), dayFor(standingNow.completedDays));
+  /** Sections skipped on diagnostic credit, which review has yet to confirm. */
+  const provisional = sections.filter(status => status.provisional);
   const todayDay = dayNumber ?? placed;
   const todayPlan = dayPlan(todayDay);
   const briefing = dayBriefing(todayDay, dayRecords);
@@ -420,9 +425,11 @@ export default function App() {
               {standingNow.doneToday
                 ? <button className="primary" onClick={() => startDay(placed)}>Extra day {placed} →</button>
                 : <button className="primary" onClick={() => startDay(placed)}>Start day {placed} →</button>}
-              <button className="ghost" onClick={() => goTo('Explore')}>Practise something else</button>
+              <button className="ghost" onClick={() => goTo('Explore')}>Practice something else</button>
             </div>
-            {standingNow.doneToday && <p className="hint">Today’s work is already recorded. Anything more is extra — it still counts as practice, and nothing is capped.</p>}
+            {provisional.length > 0
+              ? <p className="hint">Your diagnostic placed you past {provisional.map(status => status.section.name).join(', ')} — those come back as review, and if practice disagrees you will be moved back to them.</p>
+              : standingNow.doneToday && <p className="hint">Today’s work is already recorded. Anything more is extra — it still counts as practice, and nothing is capped.</p>}
           </>}
         </ScreenBody>
       </Screen>}
@@ -570,7 +577,7 @@ export default function App() {
             <p className="lede">The order material opens in. A section clears once {Math.round(CLEAR_FRACTION * 100)}% of its drills are reliable — measured, not self-reported — and clearing it opens the next. Earlier sections stay open for review.</p>
             <Pager items={sections} label="sections" row={status => <div key={status.section.id} className={`row ${status.cleared ? 'done' : status.current ? 'current' : ''}`}>
               <div className="stage-head"><b>{status.index + 1}. {status.section.name}</b></div>
-              <span className={`pill ${status.cleared ? 'growth' : status.unlocked ? 'weakness' : 'retention'}`}>{status.cleared ? 'cleared' : status.unlocked ? `${status.met.length}/${status.section.exercises.length}` : 'locked'}</span>
+              <span className={`pill ${status.cleared ? 'growth' : status.unlocked ? 'weakness' : 'retention'}`}>{status.provisional ? 'placed' : status.cleared ? 'cleared' : status.unlocked ? `${status.met.length}/${status.section.exercises.length}` : 'locked'}</span>
               <small>{status.section.goal}</small>
               <div className="stage-skills" style={{ gridColumn: '1 / -1' }}>{status.section.exercises.map(exercise => <button key={exercise} className={status.met.includes(exercise) ? 'met' : ''} disabled={!status.unlocked} onClick={() => { const kind = kindOf(exercise); if (kind) return selectKind(kind); openExercise(exercise); }}>{title(exercise)}</button>)}</div>
             </div>}/>

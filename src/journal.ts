@@ -89,7 +89,7 @@ export function journalEntry(sessionId: string, input: JournalInput): JournalEnt
 export function renderEntry(entry: JournalEntry): string {
   const when = new Date(entry.startedAt);
   const parts = [`${when.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} — ${entry.durationMinutes} min, ${entry.attempts} graded attempt${entry.attempts === 1 ? '' : 's'} at ${percent(entry.accuracy)}.`];
-  if (entry.skills.length) parts.push(`Practised ${entry.skills.map(skill => skill.replaceAll('-', ' ')).join(', ')}.`);
+  if (entry.skills.length) parts.push(`Practiced ${entry.skills.map(skill => skill.replaceAll('-', ' ')).join(', ')}.`);
   if (entry.improvement) parts.push(`${entry.improvement}.`);
   if (entry.confusions.length) parts.push(`Recurring: ${entry.confusions.join('; ')}.`);
   if (entry.retention.length) parts.push(`Retention: ${entry.retention.join('; ')}.`);

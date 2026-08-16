@@ -62,9 +62,15 @@ export const dayFor = (completedDays: number) => Math.min(TOTAL_DAYS, completedD
  * Where the ladder should start, given evidence that already exists. Someone who
  * has been using the app — or who has just taken the diagnostic — should not be
  * sent back to "is the second note higher or lower".
+ *
+ * Only a leading run of cleared sections counts. Clearing something late while
+ * an earlier section is still open does not skip the gap: the ladder is a
+ * sequence, and starting past a hole would leave it permanently unfilled.
  */
-export function placementDay(states: readonly SkillState[]): number {
-  const cleared = sectionProgress(states).filter(status => status.cleared).length;
+export function placementDay(states: readonly SkillState[], diagnostic?: Record<string, number>): number {
+  const progress = sectionProgress(states, diagnostic);
+  const firstOpen = progress.findIndex(status => !status.cleared);
+  const cleared = firstOpen < 0 ? progress.length : firstOpen;
   return Math.min(TOTAL_DAYS, cleared * DAYS_PER_SECTION + 1);
 }
 
